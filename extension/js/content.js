@@ -898,13 +898,18 @@ class AdaptiveAccessAI {
 
   onTremorDetected() {
     // Send tremor detection to background
-    chrome.runtime.sendMessage({
-      type: 'TREMOR_DETECTED',
-      data: {
-        frequency: this.estimateTremorFrequency(),
-        severity: 'medium'
-      }
-    });
+    try {
+      const frequency = this.estimateTremorFrequency ? this.estimateTremorFrequency() : 0;
+      chrome.runtime.sendMessage({
+        type: 'TREMOR_DETECTED',
+        data: {
+          frequency: frequency,
+          severity: 'medium'
+        }
+      });
+    } catch (error) {
+      console.error('Error in onTremorDetected:', error);
+    }
 
     // Auto-enable if not already
     if (!this.enabled && this.settings.autoAdapt) {
