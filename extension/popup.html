@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Adaptive Access AI</title>
+  <link rel="stylesheet" href="css/popup.css">
+</head>
+<body>
+  <div class="popup-container">
+    <!-- Header -->
+    <div class="header">
+      <div class="logo">
+        <div class="logo-icon">🎯</div>
+        <div class="logo-text">
+          <h1>Adaptive Access AI</h1>
+          <p class="subtitle">Powered by Hermes</p>
+        </div>
+      </div>
+      <div class="status-indicator" id="statusIndicator">
+        <div class="status-dot"></div>
+      </div>
+    </div>
+
+    <!-- Quick Toggle -->
+    <div class="toggle-section">
+      <button class="toggle-btn" id="toggleBtn">
+        <span class="toggle-text">Enable Accessibility</span>
+        <span class="toggle-shortcut">Alt+Shift+A</span>
+      </button>
+    </div>
+
+    <!-- Live Metrics -->
+    <div class="metrics-grid">
+      <div class="metric-card">
+        <div class="metric-value" id="accuracyValue">--%</div>
+        <div class="metric-label">Accuracy</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-value" id="assistsValue">0</div>
+        <div class="metric-label">AI Assists</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-value" id="missesValue">0</div>
+        <div class="metric-label">Prevented</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-value" id="adaptValue">0</div>
+        <div class="metric-label">Adaptations</div>
+      </div>
+    </div>
+
+    <!-- Settings -->
+    <div class="settings-section">
+      <h3>Accessibility Settings</h3>
+
+      <div class="setting-item">
+        <label for="sensitivitySlider">
+          <span>Cursor Sensitivity</span>
+          <span class="setting-value" id="sensitivityValue">50%</span>
+        </label>
+        <input type="range" id="sensitivitySlider" min="10" max="100" value="50">
+      </div>
+
+      <div class="setting-item">
+        <label for="magneticSlider">
+          <span>Magnetic Strength</span>
+          <span class="setting-value" id="magneticValue">70%</span>
+        </label>
+        <input type="range" id="magneticSlider" min="0" max="100" value="70">
+      </div>
+
+      <div class="setting-item">
+        <label for="enlargeSlider">
+          <span>Target Enlargement</span>
+          <span class="setting-value" id="enlargeValue">1.5x</span>
+        </label>
+        <input type="range" id="enlargeSlider" min="100" max="200" value="150">
+      </div>
+
+      <div class="setting-item checkbox">
+        <label for="autoAdapt">
+          <input type="checkbox" id="autoAdapt" checked>
+          <span>Auto-adapt to tremor</span>
+        </label>
+      </div>
+    </div>
+
+    <!-- Current Site Info -->
+    <div class="site-info" id="siteInfo">
+      <div class="site-header">
+        <span class="site-label">Current Site</span>
+        <span class="site-url" id="siteUrl">-</span>
+      </div>
+      <div class="site-stats">
+        <div class="site-stat">
+          <span class="stat-label">Issues Found:</span>
+          <span class="stat-value" id="issuesCount">0</span>
+        </div>
+        <div class="site-stat">
+          <span class="stat-label">Auto-fixed:</span>
+          <span class="stat-value" id="fixedCount">0</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Footer -->
+    <div class="footer">
+      <button class="footer-btn" id="helpBtn">Help</button>
+      <button class="footer-btn" id="reportBtn">Report Issue</button>
+    </div>
+  </div>
+
+  <script src="js/popup.js"></script>
+</body>
+</html>

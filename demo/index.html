@@ -1,0 +1,752 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Adaptive Access AI - Demo</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      background: linear-gradient(135deg, #1e1b4b 0%, #312e81 100%);
+      color: white;
+      min-height: 100vh;
+      padding: 40px 20px;
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    .hero {
+      text-align: center;
+      margin-bottom: 60px;
+    }
+
+    .hero h1 {
+      font-size: 48px;
+      font-weight: 700;
+      margin-bottom: 16px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .hero p {
+      font-size: 20px;
+      opacity: 0.9;
+      margin-bottom: 32px;
+    }
+
+    .demo-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+      gap: 24px;
+      margin-bottom: 60px;
+    }
+
+    .demo-card {
+      background: rgba(255, 255, 255, 0.05);
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 16px;
+      padding: 24px;
+    }
+
+    .demo-card h2 {
+      font-size: 24px;
+      margin-bottom: 20px;
+      color: #a78bfa;
+    }
+
+    .test-area {
+      background: rgba(0, 0, 0, 0.2);
+      border-radius: 12px;
+      padding: 20px;
+      margin-top: 16px;
+      min-height: 200px;
+      position: relative;
+    }
+
+    /* Tiny button test */
+    .tiny-buttons {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .tiny-btn {
+      padding: 2px 6px;
+      font-size: 10px;
+      background: #4c1d95;
+      border: none;
+      color: white;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+
+    .tiny-btn:hover {
+      background: #5b21b6;
+    }
+
+    /* Small target test */
+    .small-targets {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px;
+    }
+
+    .small-target {
+      width: 30px;
+      height: 30px;
+      background: #7c3aed;
+      border-radius: 50%;
+      cursor: pointer;
+      transition: all 0.3s;
+      position: relative;
+    }
+
+    .small-target:hover {
+      background: #8b5cf6;
+      transform: scale(1.1);
+    }
+
+    /* Drag slider test */
+    .slider-container {
+      margin: 20px 0;
+    }
+
+    .slider-track {
+      width: 100%;
+      height: 4px;
+      background: rgba(255, 255, 255, 0.2);
+      border-radius: 2px;
+      position: relative;
+      cursor: pointer;
+    }
+
+    .slider-handle {
+      width: 16px;
+      height: 16px;
+      background: #a78bfa;
+      border-radius: 50%;
+      position: absolute;
+      top: -6px;
+      left: 0;
+      cursor: grab;
+      transition: background 0.3s;
+    }
+
+    .slider-handle:active {
+      cursor: grabbing;
+      background: #c4b5fd;
+    }
+
+    /* Complex form test */
+    .form-test {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .form-group label {
+      font-size: 12px;
+      opacity: 0.8;
+    }
+
+    .form-group input,
+    .form-group select {
+      padding: 8px 12px;
+      background: rgba(255, 255, 255, 0.1);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      border-radius: 6px;
+      color: white;
+      font-size: 14px;
+    }
+
+    .dropdown-tiny {
+      padding: 4px 8px;
+      font-size: 11px;
+    }
+
+    /* Stats panel */
+    .stats-panel {
+      background: rgba(255, 255, 255, 0.05);
+      border-radius: 12px;
+      padding: 20px;
+      margin-top: 40px;
+    }
+
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 16px;
+      margin-top: 16px;
+    }
+
+    .stat-item {
+      text-align: center;
+      padding: 16px;
+      background: rgba(255, 255, 255, 0.05);
+      border-radius: 8px;
+    }
+
+    .stat-value {
+      font-size: 32px;
+      font-weight: 600;
+      color: #a78bfa;
+      margin-bottom: 4px;
+    }
+
+    .stat-label {
+      font-size: 12px;
+      opacity: 0.8;
+    }
+
+    /* Click feedback */
+    .click-indicator {
+      position: fixed;
+      width: 40px;
+      height: 40px;
+      border: 3px solid #10b981;
+      border-radius: 50%;
+      pointer-events: none;
+      z-index: 10000;
+      animation: click-success 0.5s ease-out forwards;
+    }
+
+    @keyframes click-success {
+      0% {
+        transform: scale(0);
+        opacity: 1;
+      }
+      100% {
+        transform: scale(1.5);
+        opacity: 0;
+      }
+    }
+
+    .miss-indicator {
+      position: fixed;
+      width: 20px;
+      height: 20px;
+      border: 2px solid #ef4444;
+      border-radius: 50%;
+      pointer-events: none;
+      z-index: 10000;
+      animation: click-miss 0.5s ease-out forwards;
+    }
+
+    @keyframes click-miss {
+      0% {
+        transform: scale(0);
+        opacity: 1;
+      }
+      100% {
+        transform: scale(2);
+        opacity: 0;
+      }
+    }
+
+    .control-panel {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      background: rgba(0, 0, 0, 0.8);
+      backdrop-filter: blur(10px);
+      border-radius: 12px;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      z-index: 1000;
+    }
+
+    .control-btn {
+      padding: 10px 20px;
+      background: #7c3aed;
+      border: none;
+      color: white;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 14px;
+      transition: all 0.3s;
+    }
+
+    .control-btn:hover {
+      background: #8b5cf6;
+    }
+
+    .control-btn.active {
+      background: #10b981;
+    }
+
+    .hermes-status {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 12px;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 8px;
+      font-size: 12px;
+    }
+
+    .status-light {
+      width: 8px;
+      height: 8px;
+      background: #10b981;
+      border-radius: 50%;
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="hero">
+      <h1>Adaptive Access AI Demo</h1>
+      <p>Test motor accessibility features powered by Hermes function calling</p>
+      <div class="hermes-status">
+        <div class="status-light"></div>
+        <span>Hermes AI: Ready</span>
+      </div>
+    </div>
+
+    <div class="demo-grid">
+      <!-- Tiny Button Challenge -->
+      <div class="demo-card">
+        <h2>🎯 Tiny Button Challenge</h2>
+        <p>Try clicking these small buttons - watch how AI helps!</p>
+        <div class="test-area">
+          <div class="tiny-buttons">
+            <button class="tiny-btn" onclick="handleClick(this, 'Save')">Save</button>
+            <button class="tiny-btn" onclick="handleClick(this, 'Edit')">Edit</button>
+            <button class="tiny-btn" onclick="handleClick(this, 'Delete')">Del</button>
+            <button class="tiny-btn" onclick="handleClick(this, 'Copy')">Copy</button>
+            <button class="tiny-btn" onclick="handleClick(this, 'Share')">Share</button>
+            <button class="tiny-btn" onclick="handleClick(this, 'Download')">⬇</button>
+            <button class="tiny-btn" onclick="handleClick(this, 'Upload')">⬆</button>
+            <button class="tiny-btn" onclick="handleClick(this, 'Settings')">⚙</button>
+          </div>
+          <div style="margin-top: 20px; font-size: 12px; opacity: 0.7;">
+            Simulating: GitHub PR review buttons, Figma toolbar
+          </div>
+        </div>
+      </div>
+
+      <!-- Small Target Grid -->
+      <div class="demo-card">
+        <h2>🎨 Precision Target Test</h2>
+        <p>Click the circles - AI detects struggle patterns</p>
+        <div class="test-area">
+          <div class="small-targets">
+            <div class="small-target" onclick="handleTarget(this)"></div>
+            <div class="small-target" onclick="handleTarget(this)"></div>
+            <div class="small-target" onclick="handleTarget(this)"></div>
+            <div class="small-target" onclick="handleTarget(this)"></div>
+            <div class="small-target" onclick="handleTarget(this)"></div>
+            <div class="small-target" onclick="handleTarget(this)"></div>
+            <div class="small-target" onclick="handleTarget(this)"></div>
+            <div class="small-target" onclick="handleTarget(this)"></div>
+          </div>
+          <div style="margin-top: 20px; font-size: 12px; opacity: 0.7;">
+            Simulating: Color palette selectors, icon grids
+          </div>
+        </div>
+      </div>
+
+      <!-- Slider Control -->
+      <div class="demo-card">
+        <h2>🎚️ Fine Control Test</h2>
+        <p>Drag sliders precisely - AI stabilizes movement</p>
+        <div class="test-area">
+          <div class="slider-container">
+            <label style="font-size: 12px; opacity: 0.8;">Volume</label>
+            <div class="slider-track" id="slider1">
+              <div class="slider-handle"></div>
+            </div>
+          </div>
+          <div class="slider-container">
+            <label style="font-size: 12px; opacity: 0.8;">Brightness</label>
+            <div class="slider-track" id="slider2">
+              <div class="slider-handle"></div>
+            </div>
+          </div>
+          <div class="slider-container">
+            <label style="font-size: 12px; opacity: 0.8;">Zoom Level</label>
+            <div class="slider-track" id="slider3">
+              <div class="slider-handle"></div>
+            </div>
+          </div>
+          <div style="margin-top: 20px; font-size: 12px; opacity: 0.7;">
+            Simulating: Video editor timeline, audio mixer
+          </div>
+        </div>
+      </div>
+
+      <!-- Complex Form -->
+      <div class="demo-card">
+        <h2>📝 Complex Form Navigation</h2>
+        <p>Fill form with tiny controls - AI enlarges on demand</p>
+        <div class="test-area">
+          <div class="form-test">
+            <div class="form-group">
+              <label>Email</label>
+              <input type="email" placeholder="user@example.com">
+            </div>
+            <div class="form-group">
+              <label>Country</label>
+              <select class="dropdown-tiny">
+                <option>United States</option>
+                <option>Canada</option>
+                <option>UK</option>
+              </select>
+            </div>
+            <div style="display: flex; gap: 8px;">
+              <button class="tiny-btn" style="flex: 1;">Cancel</button>
+              <button class="tiny-btn" style="flex: 1; background: #10b981;">Submit</button>
+            </div>
+          </div>
+          <div style="margin-top: 20px; font-size: 12px; opacity: 0.7;">
+            Simulating: Checkout forms, settings panels
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Live Stats -->
+    <div class="stats-panel">
+      <h2>📊 Live Performance Metrics</h2>
+      <div class="stats-grid">
+        <div class="stat-item">
+          <div class="stat-value" id="clickAccuracy">0%</div>
+          <div class="stat-label">Click Accuracy</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-value" id="missClicks">0</div>
+          <div class="stat-label">Miss Clicks</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-value" id="hermesAssists">0</div>
+          <div class="stat-label">Hermes Assists</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-value" id="avgTime">0ms</div>
+          <div class="stat-label">Avg Click Time</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-value" id="tremorLevel">None</div>
+          <div class="stat-label">Tremor Detected</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-value" id="adaptations">0</div>
+          <div class="stat-label">UI Adaptations</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Control Panel -->
+  <div class="control-panel">
+    <button class="control-btn" id="tremorBtn" onclick="toggleTremor()">
+      Simulate Tremor
+    </button>
+    <button class="control-btn" id="aiBtn" onclick="toggleAI()">
+      Enable AI Assist
+    </button>
+    <button class="control-btn" onclick="resetStats()">
+      Reset Stats
+    </button>
+  </div>
+
+  <script>
+    // Demo state
+    let stats = {
+      totalClicks: 0,
+      successfulClicks: 0,
+      missClicks: 0,
+      hermesAssists: 0,
+      avgTime: [],
+      adaptations: 0
+    };
+
+    let tremorEnabled = false;
+    let aiEnabled = false;
+    let lastClickTime = Date.now();
+
+    // Click handlers
+    function handleClick(element, action) {
+      const now = Date.now();
+      const timeTaken = now - lastClickTime;
+      lastClickTime = now;
+
+      stats.totalClicks++;
+      stats.successfulClicks++;
+      stats.avgTime.push(timeTaken);
+
+      updateStats();
+      showClickFeedback(event, true);
+
+      // Simulate Hermes response
+      if (aiEnabled && stats.missClicks > 2) {
+        simulateHermesHelp(element);
+      }
+
+      console.log(`Clicked: ${action}`);
+    }
+
+    function handleTarget(element) {
+      element.style.background = '#10b981';
+      setTimeout(() => {
+        element.style.background = '#7c3aed';
+      }, 500);
+
+      handleClick(element, 'Target');
+    }
+
+    // Tremor simulation
+    function toggleTremor() {
+      tremorEnabled = !tremorEnabled;
+      document.getElementById('tremorBtn').classList.toggle('active', tremorEnabled);
+
+      if (tremorEnabled) {
+        document.addEventListener('mousemove', addTremor);
+        document.getElementById('tremorLevel').textContent = 'Medium';
+      } else {
+        document.removeEventListener('mousemove', addTremor);
+        document.getElementById('tremorLevel').textContent = 'None';
+      }
+    }
+
+    function addTremor(e) {
+      if (!tremorEnabled) return;
+
+      // Simulate tremor by adding random offset
+      const tremor = {
+        x: (Math.random() - 0.5) * 10,
+        y: (Math.random() - 0.5) * 10
+      };
+
+      // This would affect actual cursor in production
+      // For demo, we'll show visual feedback
+      if (Math.random() > 0.8) {
+        showClickFeedback(e, false);
+        stats.missClicks++;
+        updateStats();
+      }
+    }
+
+    // AI assistance simulation
+    function toggleAI() {
+      aiEnabled = !aiEnabled;
+      document.getElementById('aiBtn').classList.toggle('active', aiEnabled);
+
+      if (aiEnabled) {
+        showNotification('Hermes AI activated - monitoring for accessibility needs');
+
+        // Simulate AI improvements
+        setTimeout(() => {
+          if (stats.missClicks > 0) {
+            enlargeSmallTargets();
+            stats.hermesAssists++;
+            stats.adaptations++;
+            updateStats();
+          }
+        }, 2000);
+      } else {
+        resetTargetSizes();
+      }
+    }
+
+    function simulateHermesHelp(element) {
+      // Simulate Hermes enlarging the target
+      element.style.padding = '8px 12px';
+      element.style.fontSize = '14px';
+      element.style.boxShadow = '0 0 0 2px rgba(16, 185, 129, 0.5)';
+
+      stats.hermesAssists++;
+      stats.adaptations++;
+      updateStats();
+
+      showNotification('Hermes detected struggle - enlarging target');
+    }
+
+    function enlargeSmallTargets() {
+      document.querySelectorAll('.tiny-btn').forEach(btn => {
+        btn.style.padding = '6px 10px';
+        btn.style.fontSize = '12px';
+      });
+
+      document.querySelectorAll('.small-target').forEach(target => {
+        target.style.width = '40px';
+        target.style.height = '40px';
+      });
+
+      showNotification('Hermes: Enlarged small targets for easier clicking');
+    }
+
+    function resetTargetSizes() {
+      document.querySelectorAll('.tiny-btn').forEach(btn => {
+        btn.style.padding = '2px 6px';
+        btn.style.fontSize = '10px';
+      });
+
+      document.querySelectorAll('.small-target').forEach(target => {
+        target.style.width = '30px';
+        target.style.height = '30px';
+      });
+    }
+
+    // Visual feedback
+    function showClickFeedback(event, success) {
+      const indicator = document.createElement('div');
+      indicator.className = success ? 'click-indicator' : 'miss-indicator';
+      indicator.style.left = `${event.clientX - 20}px`;
+      indicator.style.top = `${event.clientY - 20}px`;
+      document.body.appendChild(indicator);
+
+      setTimeout(() => indicator.remove(), 500);
+    }
+
+    function showNotification(message) {
+      const notification = document.createElement('div');
+      notification.style.cssText = `
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 16px 20px;
+        border-radius: 12px;
+        box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+        z-index: 10000;
+        animation: slide-in 0.3s ease-out;
+      `;
+      notification.innerHTML = `
+        <strong>Adaptive Access AI</strong>
+        <p style="margin-top: 4px; font-size: 14px;">${message}</p>
+      `;
+      document.body.appendChild(notification);
+
+      setTimeout(() => notification.remove(), 3000);
+    }
+
+    // Stats updates
+    function updateStats() {
+      const accuracy = stats.totalClicks > 0
+        ? Math.round((stats.successfulClicks / stats.totalClicks) * 100)
+        : 0;
+
+      document.getElementById('clickAccuracy').textContent = `${accuracy}%`;
+      document.getElementById('missClicks').textContent = stats.missClicks;
+      document.getElementById('hermesAssists').textContent = stats.hermesAssists;
+      document.getElementById('adaptations').textContent = stats.adaptations;
+
+      if (stats.avgTime.length > 0) {
+        const avg = Math.round(
+          stats.avgTime.reduce((a, b) => a + b, 0) / stats.avgTime.length
+        );
+        document.getElementById('avgTime').textContent = `${avg}ms`;
+      }
+    }
+
+    function resetStats() {
+      stats = {
+        totalClicks: 0,
+        successfulClicks: 0,
+        missClicks: 0,
+        hermesAssists: 0,
+        avgTime: [],
+        adaptations: 0
+      };
+      updateStats();
+      document.getElementById('tremorLevel').textContent = 'None';
+    }
+
+    // Slider functionality
+    document.querySelectorAll('.slider-track').forEach(track => {
+      const handle = track.querySelector('.slider-handle');
+      let isDragging = false;
+
+      handle.addEventListener('mousedown', () => {
+        isDragging = true;
+      });
+
+      document.addEventListener('mousemove', (e) => {
+        if (!isDragging) return;
+
+        const rect = track.getBoundingClientRect();
+        let x = e.clientX - rect.left;
+
+        // Apply tremor if enabled
+        if (tremorEnabled && !aiEnabled) {
+          x += (Math.random() - 0.5) * 20;
+        }
+
+        // Apply AI stabilization
+        if (aiEnabled && tremorEnabled) {
+          // Smooth out movement
+          x = Math.round(x / 5) * 5;
+        }
+
+        x = Math.max(0, Math.min(x, rect.width));
+        handle.style.left = `${x}px`;
+      });
+
+      document.addEventListener('mouseup', () => {
+        isDragging = false;
+      });
+    });
+
+    // Detect miss-clicks on body
+    document.body.addEventListener('click', (e) => {
+      if (e.target === document.body) {
+        stats.missClicks++;
+        updateStats();
+        showClickFeedback(e, false);
+
+        if (aiEnabled && stats.missClicks > 3) {
+          showNotification('Hermes: Multiple miss-clicks detected - activating enhanced assistance');
+          enlargeSmallTargets();
+        }
+      }
+    });
+
+    // Add CSS animation
+    const style = document.createElement('style');
+    style.textContent = `
+      @keyframes slide-in {
+        from {
+          transform: translateX(100%);
+          opacity: 0;
+        }
+        to {
+          transform: translateX(0);
+          opacity: 1;
+        }
+      }
+    `;
+    document.head.appendChild(style);
+
+    // Initial stats
+    updateStats();
+  </script>
+</body>
+</html>
