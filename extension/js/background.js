@@ -350,13 +350,13 @@ class HermesAccessibilityService {
 
     // Track problem sites
     if (data.currentAccuracy < 70) {
-      const siteData = this.problemSites.get(domain) || {
+      const siteData = this.metrics.problemSites.get(domain) || {
         reports: 0,
         avgAccuracy: 0
       };
       siteData.reports++;
       siteData.avgAccuracy = (siteData.avgAccuracy * (siteData.reports - 1) + data.currentAccuracy) / siteData.reports;
-      this.problemSites.set(domain, siteData);
+      this.metrics.problemSites.set(domain, siteData);
     }
 
     // Store metrics
@@ -364,7 +364,7 @@ class HermesAccessibilityService {
       globalMetrics: {
         totalSessions: this.metrics.totalSessions,
         totalAssists: this.metrics.totalAssists,
-        problemSites: Array.from(this.problemSites.entries())
+        problemSites: Array.from(this.metrics.problemSites.entries())
       }
     });
   }
