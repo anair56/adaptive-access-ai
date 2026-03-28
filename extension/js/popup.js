@@ -3,8 +3,9 @@
 document.addEventListener('DOMContentLoaded', async () => {
   // Elements
   const toggleBtn = document.getElementById('toggleBtn');
-  const statusIndicator = document.querySelector('.status-dot');
   const toggleText = document.querySelector('.toggle-text');
+  // Status indicator no longer exists in new design
+  const statusIndicator = null;
 
   // Metrics elements
   const accuracyValue = document.getElementById('accuracyValue');
@@ -24,10 +25,10 @@ document.addEventListener('DOMContentLoaded', async () => {
   const magneticValue = document.getElementById('magneticValue');
   const enlargeValue = document.getElementById('enlargeValue');
 
-  // Site info
-  const siteUrl = document.getElementById('siteUrl');
-  const issuesCount = document.getElementById('issuesCount');
-  const fixedCount = document.getElementById('fixedCount');
+  // Site info - removed in new design
+  const siteUrl = null;
+  const issuesCount = null;
+  const fixedCount = null;
 
   // State
   let isEnabled = false;
@@ -153,11 +154,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (isEnabled) {
       toggleBtn.classList.add('active');
       toggleText.textContent = 'Disable Accessibility';
-      statusIndicator.classList.add('connected');
+      // No status indicator in new design
     } else {
       toggleBtn.classList.remove('active');
       toggleText.textContent = 'Enable Accessibility';
-      statusIndicator.classList.remove('connected');
+      // No status indicator in new design
     }
   }
 
@@ -187,27 +188,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // Update site info
   async function updateSiteInfo() {
-    if (!currentTab) return;
-
-    try {
-      const url = new URL(currentTab.url);
-      siteUrl.textContent = url.hostname;
-
-      // Check for known issues on this site
-      const storage = await chrome.storage.local.get('globalMetrics');
-      if (storage.globalMetrics?.problemSites) {
-        const siteData = storage.globalMetrics.problemSites.find(
-          ([domain]) => domain === url.hostname
-        );
-
-        if (siteData) {
-          issuesCount.textContent = siteData[1].reports || 0;
-          fixedCount.textContent = Math.floor(siteData[1].reports * 0.7); // Estimate
-        }
-      }
-    } catch (error) {
-      siteUrl.textContent = 'Unknown';
-    }
+    // Site info elements removed in new design
+    // This function is now a no-op but kept for compatibility
+    return;
   }
 
   // Check WebSocket status
