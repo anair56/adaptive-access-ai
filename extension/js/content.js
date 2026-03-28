@@ -341,7 +341,8 @@ class AdaptiveAccessAI {
         this.agentSessionForWindow = true;
         this.runAgenticAssistLoop({ forceApi: false });
       } else {
-        this.showMotorShortcutRail({ fromAgent: false, announce: 'Updating shortcuts from your last clicks.' });
+        // Disabled motor rail - using AI sidebar instead
+        // this.showMotorShortcutRail({ fromAgent: false, announce: 'Updating shortcuts from your last clicks.' });
       }
     }
 
@@ -386,7 +387,8 @@ class AdaptiveAccessAI {
 
     const now = Date.now();
     if (!forceApi && now < this.agenticCooldownUntil) {
-      this.showMotorShortcutRail({ fromAgent: false, announce: 'Shortcuts updated after mis-clicks.' });
+      // Disabled motor rail - using AI sidebar instead
+      // this.showMotorShortcutRail({ fromAgent: false, announce: 'Shortcuts updated after mis-clicks.' });
       return;
     }
 
@@ -426,17 +428,19 @@ class AdaptiveAccessAI {
       if (response.recommendations.length) {
         this.applyHermesRecommendations(element, response.recommendations);
       } else {
-        this.showMotorShortcutRail({
-          fromAgent: false,
-          announce: 'Opened shortcuts from your recent click pattern.'
-        });
+        // Disabled motor rail - using AI sidebar instead
+        // this.showMotorShortcutRail({
+        //   fromAgent: false,
+        //   announce: 'Opened shortcuts from your recent click pattern.'
+        // });
       }
     } else {
       this.interventionGeneration++;
-      this.showMotorShortcutRail({
-        fromAgent: false,
-        announce: 'Showing local shortcuts while the AI service is offline.'
-      });
+      // Disabled motor rail - using AI sidebar instead
+      // this.showMotorShortcutRail({
+      //   fromAgent: false,
+      //   announce: 'Showing local shortcuts while the AI service is offline.'
+      // });
     }
   }
 
@@ -492,7 +496,8 @@ class AdaptiveAccessAI {
           this.applySensitivity(rec.sensitivity);
           break;
         case 'motor_shortcut_rail':
-          this.showMotorShortcutRail({ fromAgent: true, ...rec });
+          // Disabled motor rail - using AI sidebar instead
+          // this.showMotorShortcutRail({ fromAgent: true, ...rec });
           break;
         default:
           break;
@@ -1059,7 +1064,7 @@ class AdaptiveAccessAI {
   }
 
   cleanupEnhancements() {
-    this.hideMotorShortcutRail();
+    this.hideMotorShortcutRail();  // Clean up any existing motor rail
     this.agentSessionForWindow = false;
     this.interventionGeneration = 0;
     this.agenticFocusElement = null;
