@@ -1177,8 +1177,7 @@ class TremorSense {
       document.head.appendChild(link);
     }
 
-    // No longer need old styles - modern-ui.css handles everything
-    document.body.classList.add('modern-ai-sidebar-active');
+    // Don't modify body classes to avoid affecting website layout
 
     // Start analysis
     this.analyzePageControls();
@@ -1345,14 +1344,56 @@ class TremorSense {
           btn.className = 'control-button';
           btn.textContent = item.text || 'Unnamed Control';
 
-          btn.addEventListener('click', () => {
-            // Trigger the original element
-            if (item.element.tagName === 'A') {
-              item.element.click();
-            } else {
-              item.element.click();
-              item.element.focus();
+          btn.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+
+            // Ensure element is still in DOM
+            if (!item.element || !item.element.isConnected) {
+              console.warn('TremorSense: Element no longer in DOM');
+              return;
             }
+
+            // Scroll element into view first
+            try {
+              item.element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            } catch (err) {
+              console.warn('TremorSense: Could not scroll to element', err);
+            }
+
+            // Trigger the element after a short delay
+            setTimeout(() => {
+              try {
+                // For links, use native click
+                if (item.element.tagName === 'A') {
+                  const clickEvent = new MouseEvent('click', {
+                    bubbles: true,
+                    cancelable: true,
+                    view: window
+                  });
+                  item.element.dispatchEvent(clickEvent);
+                }
+                // For buttons and other elements
+                else if (item.element.click) {
+                  item.element.click();
+                }
+                // For inputs, trigger change event
+                else if (item.element.tagName === 'INPUT') {
+                  if (item.element.type === 'checkbox' || item.element.type === 'radio') {
+                    item.element.checked = !item.element.checked;
+                    item.element.dispatchEvent(new Event('change', { bubbles: true }));
+                  } else {
+                    item.element.focus();
+                  }
+                }
+                // Focus the element after clicking
+                if (item.element.focus && item.element.tagName !== 'A') {
+                  item.element.focus();
+                }
+              } catch (err) {
+                console.error('TremorSense: Failed to trigger element', err);
+              }
+            }, 300);
           });
 
           itemEl.appendChild(btn);
@@ -1405,7 +1446,7 @@ class TremorSense {
     const sidebar = document.getElementById('aa-ai-sidebar');
     if (sidebar) {
       sidebar.remove();
-      document.body.classList.remove('modern-ai-sidebar-active', 'collapsed');
+      // Don't modify body classes
     }
 
     const styles = document.getElementById('modern-ui-styles');
