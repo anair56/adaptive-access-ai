@@ -40,6 +40,7 @@ class AdaptiveAccessAI {
     this.lastMissDedupe = { t: 0, x: 0, y: 0 };
     this.refreshRailScheduled = null;
     this.onRailKeydownBound = this.onRailHotkey.bind(this);
+    this.motorRailChipTargets = new WeakMap();
     this.agentSessionForWindow = false;
 
     this.init();
@@ -602,14 +603,24 @@ class AdaptiveAccessAI {
   onRailHotkey(e) {
     if (!this.motorRailVisible || !this.enabled) return;
     if (!e.altKey || e.ctrlKey || e.metaKey) return;
-    const n = e.key.length === 1 ? e.key : '';
-    if (!/^[1-9]$/.test(n)) return;
-    const idx = parseInt(n, 10) - 1;
+    if (e.repeat) return;
+
+    let digit = null;
+    const d = /^Digit([1-9])$/.exec(e.code || '');
+    if (d) digit = parseInt(d[1], 10);
+    else {
+      const n = /^Numpad([1-9])$/.exec(e.code || '');
+      if (n) digit = parseInt(n[1], 10);
+    }
+    if (digit == null) return;
+
+    const idx = digit - 1;
     const buttons = this.motorRailEl?.querySelectorAll('.aa-motor-rail__chip');
     const btn = buttons?.[idx];
-    if (btn) {
+    const target = btn && this.motorRailChipTargets.get(btn);
+    if (target) {
       e.preventDefault();
-      btn.click();
+      this.activateShortcutTarget(target);
     }
   }
 
@@ -675,6 +686,7 @@ class AdaptiveAccessAI {
       const num = i + 1;
       const hotkey = `Alt+${num}`;
       btn.innerHTML = `<span class="aa-motor-rail__kbd" aria-hidden="true">${num}</span><span class="aa-motor-rail__label">${this.escapeHtml(row.label)}</span><span class="aa-motor-rail__hintkey">${hotkey}</span>`;
+      this.motorRailChipTargets.set(btn, row.el);
       btn.addEventListener('click', () => this.activateShortcutTarget(row.el));
       host.appendChild(btn);
     });
@@ -688,21 +700,37 @@ class AdaptiveAccessAI {
       .replace(/"/g, '&quot;');
   }
 
+  getShortcutActivationElement(el) {
+    const sel =
+      'a, button:not([disabled]), input:not([type="hidden"]):not([disabled]), select:not([disabled]), textarea:not([disabled]), [role="button"], [onclick]';
+    if (el.matches(sel)) return el;
+    const inner = el.querySelector(sel);
+    return inner || el;
+  }
+
   activateShortcutTarget(el) {
+    if (!el || !el.isConnected) return;
     try {
       el.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
     } catch (_) {}
-    const focusable = el.matches('a, button, input, select, textarea, [tabindex]:not([tabindex="-1"])')
-      ? el
-      : el.querySelector('a, button, input, select, textarea, [tabindex]:not([tabindex="-1"])') || el;
+
+    const toActivate = this.getShortcutActivationElement(el);
     setTimeout(() => {
+      if (!toActivate.isConnected) return;
       try {
-        focusable.focus({ preventScroll: true });
-      } catch (_) {
-        focusable.focus();
+        toActivate.click();
+      } catch (_) {}
+      if (toActivate.tagName !== 'A') {
+        try {
+          toActivate.focus({ preventScroll: true });
+        } catch (_) {
+          try {
+            toActivate.focus();
+          } catch (_) {}
+        }
       }
-      focusable.classList.add('aa-rail-flash');
-      setTimeout(() => focusable.classList.remove('aa-rail-flash'), 1400);
+      toActivate.classList.add('aa-rail-flash');
+      setTimeout(() => toActivate.classList.remove('aa-rail-flash'), 1400);
     }, 280);
   }
 
