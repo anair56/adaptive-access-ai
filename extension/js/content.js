@@ -1124,234 +1124,56 @@ class AdaptiveAccessAI {
 
     const sidebar = document.createElement('aside');
     sidebar.id = 'aa-ai-sidebar';
-    sidebar.className = 'aa-ai-sidebar';
+    sidebar.className = 'modern-ai-sidebar';
     sidebar.setAttribute('role', 'complementary');
     sidebar.setAttribute('aria-label', 'AI Control Summary');
 
     sidebar.innerHTML = `
-      <div class="aa-ai-sidebar__header">
-        <h3 class="aa-ai-sidebar__title">🤖 AI Control Summary</h3>
-        <button type="button" class="aa-ai-sidebar__toggle" aria-label="Toggle sidebar">×</button>
+      <div class="sidebar-header">
+        <h3 class="sidebar-title">AI Control Summary</h3>
+        <p class="sidebar-subtitle">Smart interface analysis</p>
+        <button type="button" class="sidebar-toggle" aria-label="Toggle sidebar">→</button>
       </div>
-      <div class="aa-ai-sidebar__content">
-        <div class="aa-ai-sidebar__loading">Analyzing page controls...</div>
-        <div class="aa-ai-sidebar__controls"></div>
+      <div class="sidebar-content">
+        <div class="loading-dots">
+          <span class="loading-dot"></span>
+          <span class="loading-dot"></span>
+          <span class="loading-dot"></span>
+        </div>
+        <div class="sidebar-controls"></div>
       </div>
-      <div class="aa-ai-sidebar__footer">
-        <button type="button" class="aa-ai-sidebar__refresh" aria-label="Refresh analysis">🔄 Refresh</button>
+      <div class="sidebar-footer">
+        <button type="button" class="refresh-button" aria-label="Refresh analysis">
+          <span>↻</span>
+          <span>Refresh Analysis</span>
+        </button>
       </div>
     `;
 
     document.body.appendChild(sidebar);
 
     // Add event listeners
-    sidebar.querySelector('.aa-ai-sidebar__toggle').addEventListener('click', () => {
-      sidebar.classList.toggle('aa-ai-sidebar--collapsed');
+    sidebar.querySelector('.sidebar-toggle').addEventListener('click', () => {
+      sidebar.classList.toggle('collapsed');
+      const toggle = sidebar.querySelector('.sidebar-toggle');
+      toggle.textContent = sidebar.classList.contains('collapsed') ? '←' : '→';
     });
 
-    sidebar.querySelector('.aa-ai-sidebar__refresh').addEventListener('click', () => {
+    sidebar.querySelector('.refresh-button').addEventListener('click', () => {
       this.analyzePageControls();
     });
 
-    // Add CSS styles if not already added
-    if (!document.getElementById('aa-ai-sidebar-styles')) {
-      const styles = document.createElement('style');
-      styles.id = 'aa-ai-sidebar-styles';
-      styles.textContent = `
-        .aa-ai-sidebar {
-          position: fixed;
-          right: 0;
-          top: 0;
-          width: 320px;
-          height: 100vh;
-          background: white;
-          box-shadow: -2px 0 10px rgba(0,0,0,0.1);
-          z-index: 999999;
-          display: flex;
-          flex-direction: column;
-          font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-          transition: transform 0.3s ease;
-        }
-
-        .aa-ai-sidebar--collapsed {
-          transform: translateX(280px);
-        }
-
-        .aa-ai-sidebar__header {
-          padding: 16px;
-          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-          color: white;
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        }
-
-        .aa-ai-sidebar__title {
-          margin: 0;
-          font-size: 16px;
-          font-weight: 600;
-        }
-
-        .aa-ai-sidebar__toggle {
-          background: none;
-          border: none;
-          color: white;
-          font-size: 24px;
-          cursor: pointer;
-          padding: 0;
-          width: 30px;
-          height: 30px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          border-radius: 4px;
-          transition: background 0.2s;
-        }
-
-        .aa-ai-sidebar__toggle:hover {
-          background: rgba(255,255,255,0.2);
-        }
-
-        .aa-ai-sidebar__content {
-          flex: 1;
-          overflow-y: auto;
-          padding: 16px;
-          background: #f7f8fa;
-        }
-
-        .aa-ai-sidebar__loading {
-          text-align: center;
-          color: #666;
-          padding: 20px;
-          font-size: 14px;
-        }
-
-        .aa-ai-sidebar__control-group {
-          margin-bottom: 20px;
-        }
-
-        .aa-ai-sidebar__control-title {
-          font-size: 12px;
-          font-weight: 600;
-          color: #666;
-          text-transform: uppercase;
-          margin-bottom: 8px;
-          letter-spacing: 0.5px;
-        }
-
-        .aa-ai-sidebar__control-item {
-          background: white;
-          border-radius: 8px;
-          padding: 12px;
-          margin-bottom: 8px;
-          box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-          transition: transform 0.2s, box-shadow 0.2s;
-        }
-
-        .aa-ai-sidebar__control-item:hover {
-          transform: translateY(-2px);
-          box-shadow: 0 3px 8px rgba(0,0,0,0.15);
-        }
-
-        .aa-ai-sidebar__control-button {
-          width: 100%;
-          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-          color: white;
-          border: none;
-          padding: 10px 16px;
-          border-radius: 6px;
-          font-size: 14px;
-          font-weight: 500;
-          cursor: pointer;
-          transition: opacity 0.2s, transform 0.2s;
-          text-align: left;
-        }
-
-        .aa-ai-sidebar__control-button:hover {
-          opacity: 0.9;
-          transform: scale(1.02);
-        }
-
-        .aa-ai-sidebar__control-button:active {
-          transform: scale(0.98);
-        }
-
-        .aa-ai-sidebar__control-desc {
-          font-size: 12px;
-          color: #666;
-          margin-top: 6px;
-          line-height: 1.4;
-        }
-
-        .aa-ai-sidebar__control-slider {
-          display: flex;
-          align-items: center;
-          gap: 12px;
-          padding: 8px 0;
-        }
-
-        .aa-ai-sidebar__control-slider input[type="range"] {
-          flex: 1;
-          height: 6px;
-          border-radius: 3px;
-          background: #ddd;
-          outline: none;
-        }
-
-        .aa-ai-sidebar__control-slider input[type="range"]::-webkit-slider-thumb {
-          appearance: none;
-          width: 18px;
-          height: 18px;
-          border-radius: 50%;
-          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-          cursor: pointer;
-        }
-
-        .aa-ai-sidebar__control-value {
-          font-size: 13px;
-          font-weight: 600;
-          color: #333;
-          min-width: 40px;
-          text-align: right;
-        }
-
-        .aa-ai-sidebar__footer {
-          padding: 12px 16px;
-          border-top: 1px solid #e5e7eb;
-          background: white;
-        }
-
-        .aa-ai-sidebar__refresh {
-          width: 100%;
-          padding: 8px;
-          background: #f3f4f6;
-          border: 1px solid #d1d5db;
-          border-radius: 6px;
-          font-size: 13px;
-          cursor: pointer;
-          transition: background 0.2s;
-        }
-
-        .aa-ai-sidebar__refresh:hover {
-          background: #e5e7eb;
-        }
-
-        /* Adjust page content to avoid overlap */
-        body.aa-ai-sidebar-active {
-          margin-right: 320px;
-          transition: margin-right 0.3s ease;
-        }
-
-        body.aa-ai-sidebar-active.aa-ai-sidebar-collapsed {
-          margin-right: 40px;
-        }
-      `;
-      document.head.appendChild(styles);
+    // Inject modern CSS styles
+    if (!document.getElementById('modern-ui-styles')) {
+      const link = document.createElement('link');
+      link.id = 'modern-ui-styles';
+      link.rel = 'stylesheet';
+      link.href = chrome.runtime.getURL('css/modern-ui.css');
+      document.head.appendChild(link);
     }
 
-    // Add class to body
-    document.body.classList.add('aa-ai-sidebar-active');
+    // No longer need old styles - modern-ui.css handles everything
+    document.body.classList.add('modern-ai-sidebar-active');
 
     // Start analysis
     this.analyzePageControls();
@@ -1361,8 +1183,8 @@ class AdaptiveAccessAI {
     const sidebar = document.getElementById('aa-ai-sidebar');
     if (!sidebar) return;
 
-    const controlsContainer = sidebar.querySelector('.aa-ai-sidebar__controls');
-    const loadingIndicator = sidebar.querySelector('.aa-ai-sidebar__loading');
+    const controlsContainer = sidebar.querySelector('.sidebar-controls');
+    const loadingIndicator = sidebar.querySelector('.loading-dots');
 
     // Show loading
     loadingIndicator.style.display = 'block';
@@ -1457,23 +1279,23 @@ class AdaptiveAccessAI {
     loadingIndicator.style.display = 'none';
 
     if (controlGroups.length === 0) {
-      controlsContainer.innerHTML = '<div class="aa-ai-sidebar__loading">No interactive controls found on this page.</div>';
+      controlsContainer.innerHTML = '<div class="loading-dots">No interactive controls found on this page.</div>';
       return;
     }
 
     // Render control groups
     controlGroups.forEach(group => {
       const groupEl = document.createElement('div');
-      groupEl.className = 'aa-ai-sidebar__control-group';
+      groupEl.className = 'control-group';
 
       const titleEl = document.createElement('div');
-      titleEl.className = 'aa-ai-sidebar__control-title';
+      titleEl.className = 'control-group-title';
       titleEl.textContent = group.title;
       groupEl.appendChild(titleEl);
 
       group.items.forEach(item => {
         const itemEl = document.createElement('div');
-        itemEl.className = 'aa-ai-sidebar__control-item';
+        itemEl.className = 'control-card';
 
         if (item.isSlider) {
           // Create slider control
@@ -1515,7 +1337,7 @@ class AdaptiveAccessAI {
         } else {
           // Create button control
           const btn = document.createElement('button');
-          btn.className = 'aa-ai-sidebar__control-button';
+          btn.className = 'control-button';
           btn.textContent = item.text || 'Unnamed Control';
 
           btn.addEventListener('click', () => {
@@ -1532,7 +1354,7 @@ class AdaptiveAccessAI {
 
           if (item.description) {
             const desc = document.createElement('div');
-            desc.className = 'aa-ai-sidebar__control-desc';
+            desc.className = 'control-description';
             desc.textContent = item.description;
             itemEl.appendChild(desc);
           }
@@ -1578,10 +1400,10 @@ class AdaptiveAccessAI {
     const sidebar = document.getElementById('aa-ai-sidebar');
     if (sidebar) {
       sidebar.remove();
-      document.body.classList.remove('aa-ai-sidebar-active', 'aa-ai-sidebar-collapsed');
+      document.body.classList.remove('modern-ai-sidebar-active', 'collapsed');
     }
 
-    const styles = document.getElementById('aa-ai-sidebar-styles');
+    const styles = document.getElementById('modern-ui-styles');
     if (styles) {
       styles.remove();
     }
