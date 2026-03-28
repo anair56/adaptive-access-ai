@@ -73,6 +73,19 @@ const hermesFunctions = [
       },
       required: ['originalAction']
     }
+  },
+  {
+    name: 'showMotorShortcutRail',
+    description:
+      'Open a persistent left shortcut rail with large touch targets and key hints for motor accessibility',
+    parameters: {
+      type: 'object',
+      properties: {
+        primaryTag: { type: 'string' },
+        primaryText: { type: 'string' },
+        prioritizeNearby: { type: 'boolean' }
+      }
+    }
   }
 ];
 
@@ -103,29 +116,56 @@ wss.on('connection', (ws) => {
   });
 });
 
+// Normalize payloads from the extension (flat) vs generic { context, metrics }
+function normalizeHermesPayload(userData) {
+  const action = userData?.action || userData?.context?.action || 'analyze';
+  const url =
+    userData?.url ||
+    userData?.context?.url ||
+    userData?.context?.page ||
+    'unknown';
+  const nestedMetrics = userData?.metrics || userData?.context?.metrics || {};
+  const missList = nestedMetrics.missClicks;
+  const missCount = Array.isArray(missList)
+    ? missList.length
+    : Number(missList) || 0;
+  const element = userData?.element || userData?.context?.element;
+  const targetSelector =
+    element?.id ? `#${element.id}` : element?.tagName || 'unknown';
+  const metrics = {
+    ...nestedMetrics,
+    missClicks: missCount,
+    targetSelector,
+    shakeDetected:
+      nestedMetrics.tremorDetected === true || nestedMetrics.shakeDetected === true,
+    escalation: userData?.escalation === true || nestedMetrics?.escalation === true
+  };
+  return { action, url, metrics, element, userData };
+}
+
 // Call Hermes API with function calling
 async function callHermes(userData) {
-  const { action, context, metrics } = userData;
+  const { action, url, metrics, element } = normalizeHermesPayload(userData);
 
   // Construct prompt based on user behavior
   const systemPrompt = `You are an accessibility AI assistant that helps users with motor impairments interact with web interfaces.
-Analyze the user's interaction patterns and decide which accessibility functions to call.
-Be aggressive about helping - if someone misses a click even once, intervene.`;
+Analyze the user's interaction patterns and decide which accessibility.functions to call.
+Be proactive: repeated near-misses mean the user needs larger targets, magnetic assist, simplified interactions, and a visible shortcut rail.`;
 
   const userPrompt = `User interaction data:
 - Action: ${action}
-- Miss clicks: ${metrics?.missClicks || 0}
-- Average time to click: ${metrics?.timeToClick || 'N/A'}ms
-- Cursor shake detected: ${metrics?.shakeDetected || false}
-- Target element: ${context?.targetElement || 'unknown'}
-- Page: ${context?.url || 'unknown'}
+- Miss-click events (recent window): ${metrics.missClicks}
+- Tremor / shake detected: ${metrics.shakeDetected || false}
+- Target element summary: ${element?.tagName || 'unknown'} ${element?.id ? '#' + element.id : ''}
+- Escalation (prior assist not enough): ${metrics.escalation || false}
+- Page: ${url}
 
 Determine the best accessibility adaptations to apply.`;
 
   try {
     // For demo purposes, we'll simulate Hermes responses
     // In production, replace with actual Hermes API call
-    const response = await simulateHermesCall(userPrompt, metrics);
+    const response = await simulateHermesCall(userPrompt, metrics, element);
 
     /* Actual Hermes API call would look like:
     const response = await axios.post(HERMES_API_URL, {
@@ -154,30 +194,43 @@ Determine the best accessibility adaptations to apply.`;
 }
 
 // Simulate Hermes responses for demo
-function simulateHermesCall(prompt, metrics) {
+function simulateHermesCall(prompt, metrics, element) {
   const missClicks = metrics?.missClicks || 0;
   const shakeDetected = metrics?.shakeDetected || false;
+  const escalation = metrics?.escalation || false;
 
   // Intelligent response based on user behavior
   const functions = [];
   let reasoning = '';
+  const scale = escalation ? 2.25 : missClicks >= 3 ? 2.0 : 1.6;
+  const magStrength = escalation ? 90 : missClicks >= 4 ? 82 : 72;
+  const sensitivity = escalation ? 0.22 : 0.3;
 
   if (missClicks >= 3) {
     functions.push({
       name: 'enlargeClickTarget',
-      arguments: { selector: metrics.targetSelector, scale: 2.0 }
+      arguments: { selector: metrics.targetSelector, scale }
     });
     functions.push({
       name: 'addMagneticSnap',
-      arguments: { selector: metrics.targetSelector, strength: 75 }
+      arguments: { selector: metrics.targetSelector, strength: magStrength }
     });
-    reasoning = 'Multiple miss-clicks detected. Enlarging target and adding magnetic assistance.';
+    functions.push({
+      name: 'showMotorShortcutRail',
+      arguments: {
+        primaryTag: element?.tagName,
+        primaryText: (element?.text || '').slice(0, 80),
+        prioritizeNearby: true
+      }
+    });
+    reasoning =
+      'Repeated mis-clicks detected. Escalating target size, magnetic snap, and opening the motor shortcut rail.';
   }
 
   if (shakeDetected) {
     functions.push({
       name: 'adjustCursorSensitivity',
-      arguments: { sensitivity: 0.3, radius: 100 }
+      arguments: { sensitivity, radius: escalation ? 120 : 100 }
     });
     reasoning += ' Tremor detected. Reducing cursor sensitivity in target zones.';
   }
@@ -192,8 +245,8 @@ function simulateHermesCall(prompt, metrics) {
 
   return {
     success: true,
-    functions: functions,
-    reasoning: reasoning || 'No accessibility issues detected.',
+    functions,
+    reasoning: reasoning || 'No strong accessibility signal in this window.',
     confidence: 0.92
   };
 }

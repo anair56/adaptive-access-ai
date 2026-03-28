@@ -29,6 +29,19 @@ class AdaptiveAccessAI {
     this.enhancedElements = new Set();
     this.clickableElements = new Set();
 
+    this.agenticFocusElement = null;
+    this.agenticCooldownUntil = 0;
+    this.agentEscalation = false;
+    this.postAssistMissStreak = 0;
+    this.interventionGeneration = 0;
+    this.motorRailEl = null;
+    this.motorRailVisible = false;
+    this.railLiveRegion = null;
+    this.lastMissDedupe = { t: 0, x: 0, y: 0 };
+    this.refreshRailScheduled = null;
+    this.onRailKeydownBound = this.onRailHotkey.bind(this);
+    this.agentSessionForWindow = false;
+
     this.init();
   }
 
@@ -64,16 +77,10 @@ class AdaptiveAccessAI {
     document.addEventListener('click', this.handleClick.bind(this), true);
     document.addEventListener('mousedown', this.handleMouseDown.bind(this), true);
 
-    // Track missed clicks (clicking on body or empty space)
-    document.addEventListener('click', (e) => {
-      if (this.isEmptySpace(e.target)) {
-        this.recordMissClick(e);
-      }
-    });
-
     // Mutation observer for dynamic content
     const observer = new MutationObserver(() => {
       this.scanForClickableElements();
+      this.scheduleRailRefresh();
     });
 
     observer.observe(document.body, {
@@ -253,21 +260,32 @@ class AdaptiveAccessAI {
     this.metrics.lastClickTime = now;
     this.metrics.totalClicks++;
 
-    // Check if this was a successful click
     const target = e.target;
     const isClickable = this.isClickableElement(target);
+    const nearest = this.findNearestClickable(e.clientX, e.clientY);
 
     if (isClickable) {
       this.metrics.successfulClicks++;
       this.onSuccessfulClick(target, timeSinceLastClick);
+      if (this.interventionGeneration > 0) {
+        this.postAssistMissStreak = 0;
+        this.agentEscalation = false;
+      }
     } else {
-      // Might be a miss-click
-      if (timeSinceLastClick < 500) {
-        this.recordMissClick(e);
+      const empty = this.isEmptySpace(target);
+      const nearMiss =
+        nearest &&
+        nearest.distance > 4 &&
+        nearest.distance < 115 &&
+        !this.motorRailEl?.contains(target);
+
+      if (empty || nearMiss) {
+        this.recordMissClick(e, nearest);
+      } else if (timeSinceLastClick < 450 && nearest && nearest.distance >= 115) {
+        this.recordMissClick(e, nearest);
       }
     }
 
-    // Update accuracy
     this.updateAccuracy();
   }
 
@@ -278,86 +296,405 @@ class AdaptiveAccessAI {
     }
   }
 
-  recordMissClick(e) {
+  recordMissClick(e, nearestPrecomputed = null) {
+    const t = Date.now();
+    const x = e.clientX;
+    const y = e.clientY;
+    if (t - this.lastMissDedupe.t < 380 && Math.hypot(x - this.lastMissDedupe.x, y - this.lastMissDedupe.y) < 14) {
+      return;
+    }
+    this.lastMissDedupe = { t, x, y };
+
     const missClick = {
-      x: e.clientX,
-      y: e.clientY,
-      time: Date.now(),
-      nearestElement: this.findNearestClickable(e.clientX, e.clientY)
+      x,
+      y,
+      time: t,
+      nearestElement: nearestPrecomputed || this.findNearestClickable(x, y)
     };
 
     this.metrics.missClicks.push(missClick);
 
-    // Keep only recent miss-clicks
-    const cutoff = Date.now() - 10000;
+    const windowMs = 16000;
+    const cutoff = Date.now() - windowMs;
     this.metrics.missClicks = this.metrics.missClicks.filter(m => m.time > cutoff);
 
-    // Check for pattern
-    if (this.metrics.missClicks.length >= 3) {
-      this.analyzeMissClickPattern();
+    if (this.metrics.missClicks.length < 3) {
+      this.agentSessionForWindow = false;
     }
 
-    // Visual feedback
-    this.showClickFeedback(e.clientX, e.clientY, false);
+    if (this.interventionGeneration > 0) {
+      this.postAssistMissStreak++;
+      if (this.postAssistMissStreak >= 2) {
+        this.agentEscalation = true;
+        this.runAgenticAssistLoop({ forceApi: true });
+        this.postAssistMissStreak = 0;
+      }
+    }
+
+    if (this.metrics.missClicks.length >= 3) {
+      this.analyzeMissClickPattern();
+      if (!this.agentSessionForWindow) {
+        this.agentSessionForWindow = true;
+        this.runAgenticAssistLoop({ forceApi: false });
+      } else {
+        this.showMotorShortcutRail({ fromAgent: false, announce: 'Updating shortcuts from your last clicks.' });
+      }
+    }
+
+    this.showClickFeedback(x, y, false);
   }
 
   analyzeMissClickPattern() {
-    const recent = this.metrics.missClicks.slice(-5);
-
-    // Find common target
+    const recent = this.metrics.missClicks.slice(-6);
     const targets = recent.map(m => m.nearestElement?.element).filter(Boolean);
     const targetCounts = {};
     targets.forEach(t => {
-      const key = t.tagName + t.className;
+      const key = `${t.tagName}|${t.className}|${t.id}`;
       targetCounts[key] = (targetCounts[key] || 0) + 1;
     });
-
-    // If same element missed multiple times, request help
     const maxCount = Math.max(...Object.values(targetCounts), 0);
-    if (maxCount >= 3) {
-      const problemElement = targets[targets.length - 1];
-      this.requestAccessibilityHelp(problemElement);
+    if (maxCount >= 2 && targets.length) {
+      this.agenticFocusElement = targets[targets.length - 1];
     }
   }
 
-  async requestAccessibilityHelp(element) {
-    // Send to background script for Hermes processing
+  scheduleRailRefresh() {
+    if (!this.motorRailVisible) return;
+    if (this.refreshRailScheduled) clearTimeout(this.refreshRailScheduled);
+    this.refreshRailScheduled = setTimeout(() => {
+      this.refreshRailScheduled = null;
+      if (this.motorRailEl) {
+        this.populateMotorRail();
+      }
+    }, 320);
+  }
+
+  runAgenticAssistLoop({ forceApi = false } = {}) {
+    if (!this.enabled || !this.settings.autoAdapt) return;
+
+    const recentMisses = this.metrics.missClicks.length;
+    if (recentMisses < 3 && !forceApi) return;
+
+    if (!this.agenticFocusElement) {
+      const last = this.metrics.missClicks[this.metrics.missClicks.length - 1];
+      this.agenticFocusElement = last?.nearestElement?.element || null;
+    }
+
+    const now = Date.now();
+    if (!forceApi && now < this.agenticCooldownUntil) {
+      this.showMotorShortcutRail({ fromAgent: false, announce: 'Shortcuts updated after mis-clicks.' });
+      return;
+    }
+
+    this.agenticCooldownUntil = now + 11000;
+    const el = this.agenticFocusElement;
+    this.requestAccessibilityHelp(el, { escalation: this.agentEscalation });
+  }
+
+  async requestAccessibilityHelp(element, opts = {}) {
+    const payloadElement =
+      element &&
+      (element.nodeType === 1
+        ? {
+            tagName: element.tagName,
+            className: element.className,
+            id: element.id,
+            text: element.textContent?.substring(0, 80),
+            rect: element.getBoundingClientRect()
+          }
+        : element);
+
     const response = await chrome.runtime.sendMessage({
       type: 'ACCESSIBILITY_HELP_NEEDED',
       data: {
-        element: {
-          tagName: element.tagName,
-          className: element.className,
-          id: element.id,
-          text: element.textContent?.substring(0, 50),
-          rect: element.getBoundingClientRect()
+        element: payloadElement,
+        metrics: {
+          ...this.metrics,
+          escalation: opts.escalation === true
         },
-        metrics: this.metrics,
-        url: window.location.href
+        url: window.location.href,
+        escalation: opts.escalation === true
       }
     });
 
-    if (response?.success) {
-      this.applyHermesRecommendations(element, response.recommendations);
+    if (response?.success && Array.isArray(response.recommendations)) {
+      this.interventionGeneration++;
+      if (response.recommendations.length) {
+        this.applyHermesRecommendations(element, response.recommendations);
+      } else {
+        this.showMotorShortcutRail({
+          fromAgent: false,
+          announce: 'Opened shortcuts from your recent click pattern.'
+        });
+      }
+    } else {
+      this.interventionGeneration++;
+      this.showMotorShortcutRail({
+        fromAgent: false,
+        announce: 'Showing local shortcuts while the AI service is offline.'
+      });
     }
   }
 
+  hermesFunctionsToRecommendations(functions) {
+    if (!Array.isArray(functions)) return [];
+    const recs = [];
+    for (const func of functions) {
+      const name = func.name;
+      const a = func.arguments || {};
+      switch (name) {
+        case 'enlargeClickTarget':
+          recs.push({ action: 'enlarge', scale: a.scale });
+          break;
+        case 'addMagneticSnap':
+          recs.push({ action: 'add_magnetic', strength: a.strength });
+          break;
+        case 'adjustCursorSensitivity':
+          recs.push({ action: 'adjust_sensitivity', sensitivity: a.sensitivity });
+          break;
+        case 'simplifyInteraction':
+          recs.push({ action: 'simplify' });
+          break;
+        case 'showMotorShortcutRail':
+          recs.push({
+            action: 'motor_shortcut_rail',
+            primaryTag: a.primaryTag,
+            primaryText: a.primaryText,
+            prioritizeNearby: a.prioritizeNearby !== false
+          });
+          break;
+        default:
+          break;
+      }
+    }
+    return recs;
+  }
+
   applyHermesRecommendations(element, recommendations) {
+    const target = element && element.nodeType === 1 ? element : this.agenticFocusElement;
+
     recommendations.forEach(rec => {
       switch (rec.action) {
         case 'enlarge':
-          this.enlargeElement(element, rec.scale || 1.5);
+          if (target) this.enlargeElement(target, rec.scale || 1.5);
           break;
         case 'add_magnetic':
-          this.addPermanentMagneticField(element, rec.strength || 80);
+          if (target) this.addPermanentMagneticField(target, rec.strength || 80);
           break;
         case 'simplify':
-          this.simplifyInteraction(element);
+          if (target) this.simplifyInteraction(target);
+          break;
+        case 'adjust_sensitivity':
+          this.applySensitivity(rec.sensitivity);
+          break;
+        case 'motor_shortcut_rail':
+          this.showMotorShortcutRail({ fromAgent: true, ...rec });
+          break;
+        default:
           break;
       }
     });
 
-    this.showNotification('AI adapted interface for better accessibility');
+    const message =
+      this.agentEscalation === true
+        ? 'AI escalated assist: stronger snap, shortcuts, and targets.'
+        : 'AI adapted the page and opened motor shortcuts.';
+    this.showNotification(message);
+    this.announceRail(message);
+    this.postAssistMissStreak = 0;
+    this.agentEscalation = false;
+  }
+
+  applySensitivity(factor) {
+    if (typeof factor !== 'number' || Number.isNaN(factor)) return;
+    this.settings.sensitivity = Math.min(1, Math.max(0.12, factor));
+    document.documentElement.style.setProperty('--aa-sensitivity', String(this.settings.sensitivity));
+  }
+
+  announceRail(text) {
+    if (!this.railLiveRegion) return;
+    this.railLiveRegion.textContent = '';
+    requestAnimationFrame(() => {
+      this.railLiveRegion.textContent = text;
+    });
+  }
+
+  showMotorShortcutRail(opts = {}) {
+    if (!this.enabled) return;
+
+    const width = 272;
+    if (!this.motorRailEl) {
+      const rail = document.createElement('aside');
+      rail.id = 'aa-motor-shortcut-rail';
+      rail.className = 'aa-motor-rail';
+      rail.setAttribute('role', 'complementary');
+      rail.setAttribute('aria-label', 'Adaptive motor shortcuts');
+      rail.innerHTML = `
+        <div class="aa-motor-rail__header">
+          <span class="aa-motor-rail__title">Motor shortcuts</span>
+          <button type="button" class="aa-motor-rail__collapse" aria-expanded="true" aria-label="Collapse shortcut rail">⟨</button>
+        </div>
+        <p class="aa-motor-rail__hint">Large targets and Alt+1–9 hotkeys when focus is on the page.</p>
+        <div class="aa-motor-rail__live" aria-live="polite"></div>
+        <div class="aa-motor-rail__actions"></div>
+        <div class="aa-motor-rail__footer">
+          <button type="button" class="aa-motor-rail__wide" data-aa-rail-action="top">Jump to top</button>
+          <button type="button" class="aa-motor-rail__wide" data-aa-rail-action="scroll-up">Scroll up</button>
+          <button type="button" class="aa-motor-rail__wide" data-aa-rail-action="scroll-down">Scroll down</button>
+        </div>
+      `;
+      document.documentElement.appendChild(rail);
+      this.motorRailEl = rail;
+      this.railLiveRegion = rail.querySelector('.aa-motor-rail__live');
+
+      rail.querySelector('.aa-motor-rail__collapse').addEventListener('click', () => {
+        const collapsed = rail.classList.toggle('aa-motor-rail--collapsed');
+        rail.querySelector('.aa-motor-rail__collapse').setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+        document.documentElement.classList.toggle('aa-rail-layout--collapsed', collapsed);
+      });
+
+      rail.addEventListener('click', (ev) => {
+        const btn = ev.target.closest('[data-aa-rail-action]');
+        if (!btn) return;
+        const act = btn.getAttribute('data-aa-rail-action');
+        if (act === 'top') window.scrollTo({ top: 0, behavior: 'smooth' });
+        if (act === 'scroll-up') window.scrollBy({ top: -Math.round(window.innerHeight * 0.85), behavior: 'smooth' });
+        if (act === 'scroll-down') window.scrollBy({ top: Math.round(window.innerHeight * 0.85), behavior: 'smooth' });
+      });
+
+      document.addEventListener('keydown', this.onRailKeydownBound, true);
+    }
+
+    document.documentElement.classList.add('aa-rail-layout');
+    document.documentElement.style.setProperty('--aa-rail-width', `${width}px`);
+    this.motorRailVisible = true;
+    this.populateMotorRail(opts);
+
+    if (opts.announce) {
+      this.announceRail(opts.announce);
+    }
+    if (opts.fromAgent) {
+      this.announceRail('AI placed a shortcut rail for easier reaching. Use numbered buttons or Alt+digit.');
+    }
+  }
+
+  hideMotorShortcutRail() {
+    if (this.motorRailEl) {
+      this.motorRailEl.remove();
+      this.motorRailEl = null;
+      this.railLiveRegion = null;
+    }
+    document.documentElement.classList.remove('aa-rail-layout', 'aa-rail-layout--collapsed');
+    document.documentElement.style.removeProperty('--aa-rail-width');
+    this.motorRailVisible = false;
+    document.removeEventListener('keydown', this.onRailKeydownBound, true);
+  }
+
+  onRailHotkey(e) {
+    if (!this.motorRailVisible || !this.enabled) return;
+    if (!e.altKey || e.ctrlKey || e.metaKey) return;
+    const n = e.key.length === 1 ? e.key : '';
+    if (!/^[1-9]$/.test(n)) return;
+    const idx = parseInt(n, 10) - 1;
+    const buttons = this.motorRailEl?.querySelectorAll('.aa-motor-rail__chip');
+    const btn = buttons?.[idx];
+    if (btn) {
+      e.preventDefault();
+      btn.click();
+    }
+  }
+
+  collectMissCentroid() {
+    const misses = this.metrics.missClicks;
+    if (!misses.length) return null;
+    const sx = misses.reduce((s, m) => s + m.x, 0);
+    const sy = misses.reduce((s, m) => s + m.y, 0);
+    return { x: sx / misses.length, y: sy / misses.length };
+  }
+
+  getMotorShortcutCandidates(opts = {}) {
+    const centroid = this.collectMissCentroid();
+    const prioritizeNearby = opts.prioritizeNearby !== false;
+    const list = Array.from(this.clickableElements).filter(el => this.isVisible(el) && !this.motorRailEl?.contains(el));
+
+    const scored = list.map(el => {
+      const rect = el.getBoundingClientRect();
+      const cx = rect.left + rect.width / 2;
+      const cy = rect.top + rect.height / 2;
+      const dist =
+        prioritizeNearby && centroid
+          ? Math.hypot(cx - centroid.x, cy - centroid.y)
+          : 0;
+      const area = Math.max(1, rect.width * rect.height);
+      const label = (el.getAttribute('aria-label') || el.textContent || el.value || el.title || '').trim();
+      return { el, dist, area, label: label.slice(0, 56) || el.tagName.toLowerCase() };
+    });
+
+    scored.sort((a, b) => {
+      if (prioritizeNearby && centroid) {
+        const d = a.dist - b.dist;
+        if (Math.abs(d) > 24) return d;
+      }
+      return b.area - a.area;
+    });
+
+    const out = [];
+    const seen = new Set();
+    for (const row of scored) {
+      if (seen.has(row.el)) continue;
+      seen.add(row.el);
+      if (row.label.length < 2 && row.el.tagName === 'INPUT') {
+        row.label = (row.el.getAttribute('placeholder') || row.el.type || 'input').slice(0, 56);
+      }
+      out.push(row);
+      if (out.length >= 9) break;
+    }
+    return out;
+  }
+
+  populateMotorRail(opts = {}) {
+    if (!this.motorRailEl) return;
+    const host = this.motorRailEl.querySelector('.aa-motor-rail__actions');
+    if (!host) return;
+    host.innerHTML = '';
+    const candidates = this.getMotorShortcutCandidates(opts);
+
+    candidates.forEach((row, i) => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'aa-motor-rail__chip';
+      const num = i + 1;
+      const hotkey = `Alt+${num}`;
+      btn.innerHTML = `<span class="aa-motor-rail__kbd" aria-hidden="true">${num}</span><span class="aa-motor-rail__label">${this.escapeHtml(row.label)}</span><span class="aa-motor-rail__hintkey">${hotkey}</span>`;
+      btn.addEventListener('click', () => this.activateShortcutTarget(row.el));
+      host.appendChild(btn);
+    });
+  }
+
+  escapeHtml(s) {
+    return String(s)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  activateShortcutTarget(el) {
+    try {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
+    } catch (_) {}
+    const focusable = el.matches('a, button, input, select, textarea, [tabindex]:not([tabindex="-1"])')
+      ? el
+      : el.querySelector('a, button, input, select, textarea, [tabindex]:not([tabindex="-1"])') || el;
+    setTimeout(() => {
+      try {
+        focusable.focus({ preventScroll: true });
+      } catch (_) {
+        focusable.focus();
+      }
+      focusable.classList.add('aa-rail-flash');
+      setTimeout(() => focusable.classList.remove('aa-rail-flash'), 1400);
+    }, 280);
   }
 
   enlargeElement(element, scale) {
@@ -652,6 +989,22 @@ class AdaptiveAccessAI {
           settings: this.settings
         });
         break;
+
+      case 'AUTO_ASSISTANCE':
+        this.interventionGeneration++;
+        this.applyHermesRecommendations(this.agenticFocusElement, message.recommendations || []);
+        sendResponse({ success: true });
+        break;
+
+      case 'HERMES_RESPONSE': {
+        const recs = this.hermesFunctionsToRecommendations(message.data?.functions);
+        if (recs.length) {
+          this.interventionGeneration++;
+          this.applyHermesRecommendations(this.agenticFocusElement, recs);
+        }
+        sendResponse({ success: true });
+        break;
+      }
     }
   }
 
@@ -684,6 +1037,11 @@ class AdaptiveAccessAI {
   }
 
   cleanupEnhancements() {
+    this.hideMotorShortcutRail();
+    this.agentSessionForWindow = false;
+    this.interventionGeneration = 0;
+    this.agenticFocusElement = null;
+
     // Remove all enhancements
     this.enhancedElements.forEach(element => {
       element.style.padding = element.dataset.originalPadding || '';

@@ -276,3 +276,189 @@
 @keyframes spin {
   to { transform: translate(-50%, -50%) rotate(360deg); }
 }
+
+/* --- Agentic motor shortcut rail (left dock) --- */
+html.aa-rail-layout {
+  box-sizing: border-box;
+}
+
+html.aa-rail-layout body {
+  box-sizing: border-box;
+}
+
+.aa-motor-rail {
+  position: fixed;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: var(--aa-rail-width, 272px);
+  max-width: 92vw;
+  z-index: 2147483640;
+  background: linear-gradient(180deg, #0f111a 0%, #1a1d2e 48%, #12151f 100%);
+  color: #e8eaef;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  box-shadow: 8px 0 32px rgba(0, 0, 0, 0.35);
+  border-right: 1px solid rgba(102, 126, 234, 0.35);
+  display: flex;
+  flex-direction: column;
+  padding: 14px 12px 18px;
+  gap: 10px;
+  overflow: hidden auto;
+  overscroll-behavior: contain;
+}
+
+.aa-motor-rail--collapsed {
+  width: 48px !important;
+  padding: 10px 6px;
+  align-items: center;
+}
+
+.aa-motor-rail--collapsed .aa-motor-rail__hint,
+.aa-motor-rail--collapsed .aa-motor-rail__live,
+.aa-motor-rail--collapsed .aa-motor-rail__actions,
+.aa-motor-rail--collapsed .aa-motor-rail__footer,
+.aa-motor-rail--collapsed .aa-motor-rail__title {
+  display: none;
+}
+
+.aa-motor-rail__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.aa-motor-rail__title {
+  font-weight: 700;
+  font-size: 15px;
+  letter-spacing: 0.02em;
+  background: linear-gradient(90deg, #8b9bff, #00ff88);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.aa-motor-rail__collapse {
+  min-width: 44px;
+  min-height: 44px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.06);
+  color: #fff;
+  font-size: 18px;
+  cursor: pointer;
+}
+
+.aa-motor-rail__hint {
+  font-size: 12px;
+  line-height: 1.45;
+  color: rgba(232, 234, 239, 0.72);
+  margin: 0;
+}
+
+.aa-motor-rail__live {
+  min-height: 1.25em;
+  font-size: 12px;
+  color: #9dafef;
+}
+
+.aa-motor-rail__actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  flex: 1;
+  min-height: 80px;
+}
+
+.aa-motor-rail__chip {
+  display: grid;
+  grid-template-columns: 36px 1fr auto;
+  align-items: center;
+  gap: 10px;
+  min-height: 52px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(0, 255, 136, 0.28);
+  background: rgba(0, 255, 136, 0.08);
+  color: #f4fff9;
+  font-size: 15px;
+  text-align: left;
+  cursor: pointer;
+  transition: transform 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
+}
+
+.aa-motor-rail__chip:hover,
+.aa-motor-rail__chip:focus {
+  outline: none;
+  background: rgba(0, 255, 136, 0.18);
+  box-shadow: 0 0 0 3px rgba(0, 255, 136, 0.35);
+  transform: translateX(2px);
+}
+
+.aa-motor-rail__kbd {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: rgba(102, 126, 234, 0.35);
+  font-weight: 700;
+  font-size: 15px;
+}
+
+.aa-motor-rail__label {
+  word-break: break-word;
+}
+
+.aa-motor-rail__hintkey {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.45);
+  white-space: nowrap;
+}
+
+.aa-motor-rail__footer {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 6px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.aa-motor-rail__wide {
+  min-height: 48px;
+  border-radius: 10px;
+  border: 1px solid rgba(139, 155, 255, 0.4);
+  background: rgba(102, 126, 234, 0.18);
+  color: #fffaeb;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.aa-motor-rail__wide:hover,
+.aa-motor-rail__wide:focus {
+  outline: none;
+  background: rgba(102, 126, 234, 0.32);
+}
+
+html.aa-rail-layout:not(.aa-rail-layout--collapsed) {
+  padding-left: var(--aa-rail-width, 272px);
+}
+
+html.aa-rail-layout.aa-rail-layout--collapsed {
+  padding-left: 48px;
+}
+
+.aa-rail-flash {
+  animation: aa-rail-flash 1.2s ease-out 1;
+}
+
+@keyframes aa-rail-flash {
+  0% {
+    box-shadow: 0 0 0 0 rgba(0, 255, 136, 0.8);
+  }
+  100% {
+    box-shadow: 0 0 0 18px rgba(0, 255, 136, 0);
+  }
+}

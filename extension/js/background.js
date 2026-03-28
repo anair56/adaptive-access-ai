@@ -197,6 +197,15 @@ class HermesAccessibilityService {
             action: 'simplify'
           });
           break;
+
+        case 'showMotorShortcutRail':
+          recommendations.push({
+            action: 'motor_shortcut_rail',
+            primaryTag: func.arguments?.primaryTag,
+            primaryText: func.arguments?.primaryText,
+            prioritizeNearby: func.arguments?.prioritizeNearby !== false
+          });
+          break;
       }
     });
 
@@ -206,16 +215,21 @@ class HermesAccessibilityService {
   getDefaultRecommendations(data) {
     const recommendations = [];
     const metrics = data.metrics || {};
+    const escalation = metrics.escalation === true || data.escalation === true;
 
     // Based on miss-click count
-    if (metrics.missClicks?.length > 3) {
+    if (metrics.missClicks?.length >= 3) {
       recommendations.push({
         action: 'enlarge',
-        scale: 1.5
+        scale: escalation ? 2.1 : 1.65
       });
       recommendations.push({
         action: 'add_magnetic',
-        strength: 75
+        strength: escalation ? 88 : 76
+      });
+      recommendations.push({
+        action: 'motor_shortcut_rail',
+        prioritizeNearby: true
       });
     }
 
@@ -297,7 +311,8 @@ class HermesAccessibilityService {
       type: 'AUTO_ASSISTANCE',
       recommendations: [
         { action: 'adjust_sensitivity', sensitivity: 0.3 },
-        { action: 'add_magnetic', strength: 60 }
+        { action: 'add_magnetic', strength: 60 },
+        { action: 'motor_shortcut_rail', prioritizeNearby: true }
       ]
     };
 
