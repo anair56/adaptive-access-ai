@@ -17,6 +17,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const magneticSlider = document.getElementById('magneticSlider');
   const enlargeSlider = document.getElementById('enlargeSlider');
   const autoAdapt = document.getElementById('autoAdapt');
+  const aiSidebar = document.getElementById('aiSidebar');
 
   // Value displays
   const sensitivityValue = document.getElementById('sensitivityValue');
@@ -53,6 +54,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       magneticSlider.value = storage.settings.magneticStrength;
       enlargeSlider.value = storage.settings.enlargeScale * 100;
       autoAdapt.checked = storage.settings.autoAdapt;
+      aiSidebar.checked = storage.settings.showAISidebar !== false; // Default to true
       updateSliderValues();
     }
 
@@ -110,6 +112,14 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   autoAdapt.addEventListener('change', (e) => {
     updateSetting('autoAdapt', e.target.checked);
+  });
+
+  aiSidebar.addEventListener('change', async (e) => {
+    await updateSetting('showAISidebar', e.target.checked);
+    // Send message to content script to toggle sidebar
+    await chrome.tabs.sendMessage(currentTab.id, {
+      type: e.target.checked ? 'SHOW_SIDEBAR' : 'HIDE_SIDEBAR'
+    });
   });
 
   // Update settings

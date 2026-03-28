@@ -53,6 +53,10 @@ class AdaptiveAccessAI {
     }
     if (stored.settings) {
       this.settings = { ...this.settings, ...stored.settings };
+      // Check if AI sidebar should be shown (default to true if not set)
+      if (stored.settings.showAISidebar !== false && stored.enabled) {
+        this.createAISidebar();
+      }
     }
 
     // Set up message listeners
@@ -982,6 +986,16 @@ class AdaptiveAccessAI {
         sendResponse({ success: true });
         break;
 
+      case 'SHOW_SIDEBAR':
+        this.createAISidebar();
+        sendResponse({ success: true });
+        break;
+
+      case 'HIDE_SIDEBAR':
+        this.removeSidebar();
+        sendResponse({ success: true });
+        break;
+
       case 'GET_STATUS':
         sendResponse({
           enabled: this.enabled,
@@ -1016,6 +1030,11 @@ class AdaptiveAccessAI {
 
     // Initial scan
     this.scanForClickableElements();
+
+    // Create AI sidebar if enabled in settings
+    if (this.settings.showAISidebar !== false) {
+      this.createAISidebar();
+    }
   }
 
   disable() {
@@ -1026,6 +1045,9 @@ class AdaptiveAccessAI {
 
     // Cleanup
     this.cleanupEnhancements();
+
+    // Remove AI sidebar
+    this.removeSidebar();
   }
 
   toggle() {
@@ -1060,6 +1082,476 @@ class AdaptiveAccessAI {
     document.querySelectorAll('.aa-small-target, .aa-low-contrast').forEach(el => {
       el.classList.remove('aa-small-target', 'aa-low-contrast');
     });
+  }
+
+  // AI Sidebar functionality
+  createAISidebar() {
+    // Check if sidebar already exists
+    if (document.getElementById('aa-ai-sidebar')) return;
+
+    const sidebar = document.createElement('aside');
+    sidebar.id = 'aa-ai-sidebar';
+    sidebar.className = 'aa-ai-sidebar';
+    sidebar.setAttribute('role', 'complementary');
+    sidebar.setAttribute('aria-label', 'AI Control Summary');
+
+    sidebar.innerHTML = `
+      <div class="aa-ai-sidebar__header">
+        <h3 class="aa-ai-sidebar__title">🤖 AI Control Summary</h3>
+        <button type="button" class="aa-ai-sidebar__toggle" aria-label="Toggle sidebar">×</button>
+      </div>
+      <div class="aa-ai-sidebar__content">
+        <div class="aa-ai-sidebar__loading">Analyzing page controls...</div>
+        <div class="aa-ai-sidebar__controls"></div>
+      </div>
+      <div class="aa-ai-sidebar__footer">
+        <button type="button" class="aa-ai-sidebar__refresh" aria-label="Refresh analysis">🔄 Refresh</button>
+      </div>
+    `;
+
+    document.body.appendChild(sidebar);
+
+    // Add event listeners
+    sidebar.querySelector('.aa-ai-sidebar__toggle').addEventListener('click', () => {
+      sidebar.classList.toggle('aa-ai-sidebar--collapsed');
+    });
+
+    sidebar.querySelector('.aa-ai-sidebar__refresh').addEventListener('click', () => {
+      this.analyzePageControls();
+    });
+
+    // Add CSS styles if not already added
+    if (!document.getElementById('aa-ai-sidebar-styles')) {
+      const styles = document.createElement('style');
+      styles.id = 'aa-ai-sidebar-styles';
+      styles.textContent = `
+        .aa-ai-sidebar {
+          position: fixed;
+          right: 0;
+          top: 0;
+          width: 320px;
+          height: 100vh;
+          background: white;
+          box-shadow: -2px 0 10px rgba(0,0,0,0.1);
+          z-index: 999999;
+          display: flex;
+          flex-direction: column;
+          font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+          transition: transform 0.3s ease;
+        }
+
+        .aa-ai-sidebar--collapsed {
+          transform: translateX(280px);
+        }
+
+        .aa-ai-sidebar__header {
+          padding: 16px;
+          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+          color: white;
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .aa-ai-sidebar__title {
+          margin: 0;
+          font-size: 16px;
+          font-weight: 600;
+        }
+
+        .aa-ai-sidebar__toggle {
+          background: none;
+          border: none;
+          color: white;
+          font-size: 24px;
+          cursor: pointer;
+          padding: 0;
+          width: 30px;
+          height: 30px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          border-radius: 4px;
+          transition: background 0.2s;
+        }
+
+        .aa-ai-sidebar__toggle:hover {
+          background: rgba(255,255,255,0.2);
+        }
+
+        .aa-ai-sidebar__content {
+          flex: 1;
+          overflow-y: auto;
+          padding: 16px;
+          background: #f7f8fa;
+        }
+
+        .aa-ai-sidebar__loading {
+          text-align: center;
+          color: #666;
+          padding: 20px;
+          font-size: 14px;
+        }
+
+        .aa-ai-sidebar__control-group {
+          margin-bottom: 20px;
+        }
+
+        .aa-ai-sidebar__control-title {
+          font-size: 12px;
+          font-weight: 600;
+          color: #666;
+          text-transform: uppercase;
+          margin-bottom: 8px;
+          letter-spacing: 0.5px;
+        }
+
+        .aa-ai-sidebar__control-item {
+          background: white;
+          border-radius: 8px;
+          padding: 12px;
+          margin-bottom: 8px;
+          box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+          transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .aa-ai-sidebar__control-item:hover {
+          transform: translateY(-2px);
+          box-shadow: 0 3px 8px rgba(0,0,0,0.15);
+        }
+
+        .aa-ai-sidebar__control-button {
+          width: 100%;
+          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+          color: white;
+          border: none;
+          padding: 10px 16px;
+          border-radius: 6px;
+          font-size: 14px;
+          font-weight: 500;
+          cursor: pointer;
+          transition: opacity 0.2s, transform 0.2s;
+          text-align: left;
+        }
+
+        .aa-ai-sidebar__control-button:hover {
+          opacity: 0.9;
+          transform: scale(1.02);
+        }
+
+        .aa-ai-sidebar__control-button:active {
+          transform: scale(0.98);
+        }
+
+        .aa-ai-sidebar__control-desc {
+          font-size: 12px;
+          color: #666;
+          margin-top: 6px;
+          line-height: 1.4;
+        }
+
+        .aa-ai-sidebar__control-slider {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          padding: 8px 0;
+        }
+
+        .aa-ai-sidebar__control-slider input[type="range"] {
+          flex: 1;
+          height: 6px;
+          border-radius: 3px;
+          background: #ddd;
+          outline: none;
+        }
+
+        .aa-ai-sidebar__control-slider input[type="range"]::-webkit-slider-thumb {
+          appearance: none;
+          width: 18px;
+          height: 18px;
+          border-radius: 50%;
+          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+          cursor: pointer;
+        }
+
+        .aa-ai-sidebar__control-value {
+          font-size: 13px;
+          font-weight: 600;
+          color: #333;
+          min-width: 40px;
+          text-align: right;
+        }
+
+        .aa-ai-sidebar__footer {
+          padding: 12px 16px;
+          border-top: 1px solid #e5e7eb;
+          background: white;
+        }
+
+        .aa-ai-sidebar__refresh {
+          width: 100%;
+          padding: 8px;
+          background: #f3f4f6;
+          border: 1px solid #d1d5db;
+          border-radius: 6px;
+          font-size: 13px;
+          cursor: pointer;
+          transition: background 0.2s;
+        }
+
+        .aa-ai-sidebar__refresh:hover {
+          background: #e5e7eb;
+        }
+
+        /* Adjust page content to avoid overlap */
+        body.aa-ai-sidebar-active {
+          margin-right: 320px;
+          transition: margin-right 0.3s ease;
+        }
+
+        body.aa-ai-sidebar-active.aa-ai-sidebar-collapsed {
+          margin-right: 40px;
+        }
+      `;
+      document.head.appendChild(styles);
+    }
+
+    // Add class to body
+    document.body.classList.add('aa-ai-sidebar-active');
+
+    // Start analysis
+    this.analyzePageControls();
+  }
+
+  analyzePageControls() {
+    const sidebar = document.getElementById('aa-ai-sidebar');
+    if (!sidebar) return;
+
+    const controlsContainer = sidebar.querySelector('.aa-ai-sidebar__controls');
+    const loadingIndicator = sidebar.querySelector('.aa-ai-sidebar__loading');
+
+    // Show loading
+    loadingIndicator.style.display = 'block';
+    controlsContainer.innerHTML = '';
+
+    // Find all interactive elements
+    const buttons = Array.from(document.querySelectorAll('button:not(.aa-ai-sidebar button):not(.aa-ai-sidebar__toggle):not(.aa-ai-sidebar__refresh):not(.aa-motor-rail button)'));
+    const links = Array.from(document.querySelectorAll('a[href]:not(.aa-ai-sidebar a)'));
+    const inputs = Array.from(document.querySelectorAll('input:not(.aa-ai-sidebar input)'));
+    const selects = Array.from(document.querySelectorAll('select:not(.aa-ai-sidebar select)'));
+    const sliders = Array.from(document.querySelectorAll('input[type="range"]:not(.aa-ai-sidebar input)'));
+
+    // Group and summarize controls
+    const controlGroups = [];
+
+    // Process buttons
+    if (buttons.length > 0) {
+      const buttonGroup = {
+        title: 'Buttons',
+        items: buttons.slice(0, 10).map(btn => ({
+          element: btn,
+          text: this.getElementText(btn),
+          description: this.generateElementDescription(btn)
+        }))
+      };
+      controlGroups.push(buttonGroup);
+    }
+
+    // Process important links
+    const importantLinks = links.filter(link => {
+      const text = this.getElementText(link).toLowerCase();
+      return text && (
+        text.includes('submit') ||
+        text.includes('continue') ||
+        text.includes('next') ||
+        text.includes('sign') ||
+        text.includes('log') ||
+        text.includes('buy') ||
+        text.includes('add to cart')
+      );
+    });
+
+    if (importantLinks.length > 0) {
+      const linkGroup = {
+        title: 'Important Actions',
+        items: importantLinks.slice(0, 5).map(link => ({
+          element: link,
+          text: this.getElementText(link),
+          description: `Link to: ${link.href.substring(0, 50)}...`
+        }))
+      };
+      controlGroups.push(linkGroup);
+    }
+
+    // Process sliders
+    if (sliders.length > 0) {
+      const sliderGroup = {
+        title: 'Sliders',
+        items: sliders.slice(0, 5).map(slider => ({
+          element: slider,
+          text: slider.getAttribute('aria-label') || slider.name || 'Slider',
+          description: `Range: ${slider.min || 0} to ${slider.max || 100}, Current: ${slider.value}`,
+          isSlider: true,
+          min: slider.min || 0,
+          max: slider.max || 100,
+          value: slider.value
+        }))
+      };
+      controlGroups.push(sliderGroup);
+    }
+
+    // Process form inputs
+    const formInputs = inputs.filter(input =>
+      input.type !== 'hidden' &&
+      input.type !== 'range' &&
+      (input.type === 'submit' || input.type === 'button' || input.type === 'checkbox' || input.type === 'radio')
+    );
+
+    if (formInputs.length > 0) {
+      const inputGroup = {
+        title: 'Form Controls',
+        items: formInputs.slice(0, 5).map(input => ({
+          element: input,
+          text: input.value || input.placeholder || input.name || input.type,
+          description: `${input.type} control`
+        }))
+      };
+      controlGroups.push(inputGroup);
+    }
+
+    // Hide loading and render controls
+    loadingIndicator.style.display = 'none';
+
+    if (controlGroups.length === 0) {
+      controlsContainer.innerHTML = '<div class="aa-ai-sidebar__loading">No interactive controls found on this page.</div>';
+      return;
+    }
+
+    // Render control groups
+    controlGroups.forEach(group => {
+      const groupEl = document.createElement('div');
+      groupEl.className = 'aa-ai-sidebar__control-group';
+
+      const titleEl = document.createElement('div');
+      titleEl.className = 'aa-ai-sidebar__control-title';
+      titleEl.textContent = group.title;
+      groupEl.appendChild(titleEl);
+
+      group.items.forEach(item => {
+        const itemEl = document.createElement('div');
+        itemEl.className = 'aa-ai-sidebar__control-item';
+
+        if (item.isSlider) {
+          // Create slider control
+          const sliderContainer = document.createElement('div');
+          sliderContainer.className = 'aa-ai-sidebar__control-slider';
+
+          const slider = document.createElement('input');
+          slider.type = 'range';
+          slider.min = item.min;
+          slider.max = item.max;
+          slider.value = item.value;
+
+          const valueDisplay = document.createElement('span');
+          valueDisplay.className = 'aa-ai-sidebar__control-value';
+          valueDisplay.textContent = item.value;
+
+          slider.addEventListener('input', (e) => {
+            valueDisplay.textContent = e.target.value;
+            // Update the original slider
+            item.element.value = e.target.value;
+            item.element.dispatchEvent(new Event('input', { bubbles: true }));
+            item.element.dispatchEvent(new Event('change', { bubbles: true }));
+          });
+
+          const label = document.createElement('div');
+          label.style.fontSize = '13px';
+          label.style.marginBottom = '8px';
+          label.textContent = item.text;
+
+          itemEl.appendChild(label);
+          sliderContainer.appendChild(slider);
+          sliderContainer.appendChild(valueDisplay);
+          itemEl.appendChild(sliderContainer);
+
+          const desc = document.createElement('div');
+          desc.className = 'aa-ai-sidebar__control-desc';
+          desc.textContent = item.description;
+          itemEl.appendChild(desc);
+        } else {
+          // Create button control
+          const btn = document.createElement('button');
+          btn.className = 'aa-ai-sidebar__control-button';
+          btn.textContent = item.text || 'Unnamed Control';
+
+          btn.addEventListener('click', () => {
+            // Trigger the original element
+            if (item.element.tagName === 'A') {
+              item.element.click();
+            } else {
+              item.element.click();
+              item.element.focus();
+            }
+          });
+
+          itemEl.appendChild(btn);
+
+          if (item.description) {
+            const desc = document.createElement('div');
+            desc.className = 'aa-ai-sidebar__control-desc';
+            desc.textContent = item.description;
+            itemEl.appendChild(desc);
+          }
+        }
+
+        groupEl.appendChild(itemEl);
+      });
+
+      controlsContainer.appendChild(groupEl);
+    });
+  }
+
+  getElementText(element) {
+    // Try to get meaningful text from element
+    return element.textContent?.trim() ||
+           element.value ||
+           element.getAttribute('aria-label') ||
+           element.getAttribute('title') ||
+           element.getAttribute('alt') ||
+           element.getAttribute('name') ||
+           '';
+  }
+
+  generateElementDescription(element) {
+    // Generate AI-like description based on element attributes
+    const role = element.getAttribute('role');
+    const ariaLabel = element.getAttribute('aria-label');
+    const title = element.getAttribute('title');
+    const type = element.type;
+    const className = element.className;
+
+    if (ariaLabel) return `Accessible: ${ariaLabel}`;
+    if (title) return `Tooltip: ${title}`;
+    if (role) return `Role: ${role}`;
+    if (type) return `Type: ${type}`;
+    if (className && className.includes('submit')) return 'Submits form';
+    if (className && className.includes('cancel')) return 'Cancels action';
+
+    return 'Interactive element';
+  }
+
+  removeSidebar() {
+    const sidebar = document.getElementById('aa-ai-sidebar');
+    if (sidebar) {
+      sidebar.remove();
+      document.body.classList.remove('aa-ai-sidebar-active', 'aa-ai-sidebar-collapsed');
+    }
+
+    const styles = document.getElementById('aa-ai-sidebar-styles');
+    if (styles) {
+      styles.remove();
+    }
   }
 }
 
