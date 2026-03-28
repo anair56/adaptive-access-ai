@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "Adaptive Access AI",
+  "name": "TremorSense",
   "version": "2.0.0",
-  "description": "AI-powered motor accessibility with Hermes function calling",
+  "description": "AI-powered tremor detection and motor accessibility assistance",
 
   "permissions": [
     "storage",

@@ -1,7 +1,7 @@
-// Adaptive Access AI - Content Script
+// TremorSense - Content Script
 // This runs on every webpage and provides real-time accessibility features
 
-class AdaptiveAccessAI {
+class TremorSense {
   constructor() {
     this.enabled = false;
     this.settings = {
@@ -71,7 +71,7 @@ class AdaptiveAccessAI {
     this.scanForClickableElements();
     this.startMonitoring();
 
-    console.log('🎯 Adaptive Access AI initialized on', window.location.hostname);
+    console.log('🎯 TremorSense initialized on', window.location.hostname);
   }
 
   setupEventListeners() {
@@ -1064,7 +1064,7 @@ class AdaptiveAccessAI {
     this.enabled = true;
     document.body.classList.add('aa-enabled');
     chrome.storage.local.set({ enabled: true });
-    this.showNotification('Adaptive Access AI enabled');
+    this.showNotification('TremorSense enabled');
 
     // Initial scan
     this.scanForClickableElements();
@@ -1079,7 +1079,7 @@ class AdaptiveAccessAI {
     this.enabled = false;
     document.body.classList.remove('aa-enabled');
     chrome.storage.local.set({ enabled: false });
-    this.showNotification('Adaptive Access AI disabled');
+    this.showNotification('TremorSense disabled');
 
     // Cleanup
     this.cleanupEnhancements();
@@ -1416,4 +1416,4 @@ class AdaptiveAccessAI {
 }
 
 // Initialize
-const adaptiveAI = new AdaptiveAccessAI();
+const tremorSense = new TremorSense();
