@@ -70,6 +70,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       console.log('Content script not loaded yet');
     }
 
+    initCreatorHub();
+
     // Get global metrics
     const globalMetrics = await chrome.storage.local.get('globalMetrics');
     if (globalMetrics.globalMetrics) {
@@ -276,4 +278,83 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   `;
   document.head.appendChild(style);
+  function initCreatorHub() {
+  const creatorHubContainer = document.getElementById('creatorHub');
+
+  const buttons = [
+    { label: 'Make Website', icon: '🌐', url: 'https://www.wix.com/start/website' },
+    { label: 'Send Email', icon: '✉️', url: 'https://mail.google.com/' },
+    { label: 'Design in Canva', icon: '🎨', url: 'https://www.canva.com/' },
+    { label: 'Fiverr / Freelance', icon: '🖥️', url: 'https://www.fiverr.com/' },
+    { label: 'Payment Portal', icon: '💰', url: 'https://www.paypal.com/' },
+    { label: 'Social Scheduler', icon: '📅', url: 'https://later.com/' },
+    { label: 'Upload Music', icon: '🎵', url: 'https://soundcloud.com/' },
+    { label: 'Copy Affiliate Link', icon: '📋', action: () => {
+        navigator.clipboard.writeText('https://your-affiliate-link.com');
+        showNotification('Affiliate link copied!');
+      }
+    },
+  ];
+
+
+  buttons.forEach(btn => {
+    const element = document.createElement('button');
+
+    // Add icon + label
+    element.innerHTML = `<span class="button-icon">${btn.icon}</span><span class="button-label">${btn.label}</span>`;
+
+    // Dark-themed styling to match the popup
+    element.style.cssText = `
+      width: 100%;
+      padding: 10px 14px;
+      margin: 6px 0;
+      font-size: 14px;
+      font-weight: 500;
+      color: #333;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 12px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      justify-content: center;
+      transition: all 0.25s ease;
+      box-shadow: 0 4px 8px rgba(0,0,0,0.25);
+    `;
+
+    // Hover effect (lighter background + subtle glow)
+    element.addEventListener('mouseenter', () => {
+      element.style.background = 'rgba(0, 255, 136, 0.1)';
+      element.style.color = '#00ff88';
+      element.style.transform = 'translateY(-2px)';
+      element.style.boxShadow = '0 6px 12px rgba(0,255,136,0.3)';
+    });
+
+    element.addEventListener('mouseleave', () => {
+      element.style.background = 'rgba(255, 255, 255, 0.05)';
+      element.style.color = '#333';
+      element.style.transform = 'translateY(0)';
+      element.style.boxShadow = '0 4px 8px rgba(0,0,0,0.25)';
+    });
+
+    // Action
+    element.addEventListener('click', () => {
+      if (btn.url) chrome.tabs.create({ url: btn.url });
+      if (btn.action) btn.action();
+    });
+
+    creatorHubContainer.appendChild(element);
+  });
+}
+
+  // ------------------------------
+  // Footer buttons
+  // ------------------------------
+  document.getElementById('helpBtn').addEventListener('click', () => {
+    chrome.tabs.create({ url: 'https://github.com/anthropics/claude-code' });
+  });
+  document.getElementById('reportBtn').addEventListener('click', () => {
+    chrome.tabs.create({ url: 'https://github.com/anthropics/claude-code/issues' });
+  });
 });

@@ -285,3 +285,42 @@ input[type="checkbox"] {
   background: rgba(255, 255, 255, 0.1);
   color: #fff;
 }
+
+/* Creator Hub Section */
+.creator-hub {
+  margin: 12px 0;
+  padding-top: 6px;
+  border-top: 1px solid #ccc;
+}
+
+.creator-hub h3 {
+  font-size: 14px;
+  margin-bottom: 6px;
+  color: #333;
+}
+
+.creator-hub button {
+  width: 100%;
+  padding: 10px 14px;
+  margin: 6px 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: #333;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  justify-content: center;
+  transition: all 0.2s ease-in-out;
+  box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+}
+
+.creator-hub button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 12px rgba(0,0,0,0.3);
+  background: linear-gradient(135deg, #00ff88 0%, #00cc70 100%);
+  color: #333 !important;
+}
