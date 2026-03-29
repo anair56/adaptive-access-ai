@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TremorSense</title>
+  <link rel="stylesheet" href="css/modern-ui.css">
+</head>
+<body>
+  <div class="modern-popup">
+    <!-- Geometric Background Shapes -->
+    <div class="geometric-bg">
+      <div class="shape-circle"></div>
+      <div class="shape-triangle"></div>
+      <div class="shape-square"></div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="popup-content">
+      <!-- Header -->
+      <div class="modern-header">
+        <div class="app-title">
+          <div class="app-icon">✦</div>
+          <h1 class="app-name">TremorSense</h1>
+        </div>
+        <p class="app-tagline">Intelligent tremor detection & assistance</p>
+      </div>
+
+      <!-- Main Toggle -->
+      <button class="hero-toggle" id="toggleBtn">
+        <span class="toggle-text">Enable Accessibility</span>
+      </button>
+
+      <!-- Stats Grid -->
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-value" id="accuracyValue">--%</div>
+          <div class="stat-label">Accuracy</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value" id="assistsValue">0</div>
+          <div class="stat-label">AI Assists</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value" id="missesValue">0</div>
+          <div class="stat-label">Prevented</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value" id="adaptValue">0</div>
+          <div class="stat-label">Adaptations</div>
+        </div>
+      </div>
+
+      <!-- Settings Section -->
+      <div class="settings-section">
+        <h3 class="section-title">Controls</h3>
+
+        <!-- Sensitivity Slider -->
+        <div class="control-item">
+          <div class="control-label">
+            <span class="control-name">Cursor Sensitivity</span>
+            <span class="control-value" id="sensitivityValue">50%</span>
+          </div>
+          <input type="range" class="modern-slider" id="sensitivitySlider" min="10" max="100" value="50">
+        </div>
+
+        <!-- Magnetic Strength Slider -->
+        <div class="control-item">
+          <div class="control-label">
+            <span class="control-name">Magnetic Strength</span>
+            <span class="control-value" id="magneticValue">70%</span>
+          </div>
+          <input type="range" class="modern-slider" id="magneticSlider" min="0" max="100" value="70">
+        </div>
+
+        <!-- Target Enlargement Slider -->
+        <div class="control-item">
+          <div class="control-label">
+            <span class="control-name">Target Enlargement</span>
+            <span class="control-value" id="enlargeValue">1.5x</span>
+          </div>
+          <input type="range" class="modern-slider" id="enlargeSlider" min="100" max="200" value="150">
+        </div>
+
+        <!-- Checkboxes -->
+        <label class="modern-checkbox">
+          <input type="checkbox" class="checkbox-input" id="autoAdapt" checked>
+          <span class="checkbox-box"></span>
+          <span class="checkbox-label">Auto-adapt to tremor</span>
+        </label>
+
+        <label class="modern-checkbox">
+          <input type="checkbox" class="checkbox-input" id="aiSidebar" checked>
+          <span class="checkbox-box"></span>
+          <span class="checkbox-label">Show AI Control Summary</span>
+        </label>
+
+        <!-- Creator Hub -->
+    <div class="creator-hub" id="creatorHub">
+      <h3>Creator Hub</h3>
+      <!-- Buttons will be injected via popup.js -->
+    </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/popup.js"></script>
+</body>
+</html>

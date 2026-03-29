@@ -1,0 +1,21 @@
+{
+  "name": "adaptive-access-ai",
+  "version": "1.0.0",
+  "description": "AI-powered motor accessibility layer using Hermes",
+  "scripts": {
+    "dev:server": "node server/index.js",
+    "dev:extension": "cd extension && npm run build",
+    "demo": "open demo/index.html",
+    "start": "concurrently \"npm run dev:server\" \"npm run dev:extension\""
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "ws": "^8.14.2",
+    "cors": "^2.8.5",
+    "dotenv": "^16.3.1",
+    "axios": "^1.6.2"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.0"
+  }
+}
