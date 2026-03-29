@@ -90,8 +90,11 @@ class TremorSense {
         this.createAISidebar();
       }
       // Initialize voice control if it was enabled
-      if (stored.settings.voiceEnabled && stored.enabled) {
-        this.initializeVoiceNavigator();
+      if (stored.settings?.voiceEnabled) {
+        // Delay initialization to ensure VoiceNavigator class is loaded
+        setTimeout(() => {
+          this.initializeVoiceNavigator();
+        }, 100);
       }
     }
 
@@ -1337,15 +1340,27 @@ class TremorSense {
       case 'TOGGLE_VOICE':
         if (message.enabled) {
           this.initializeVoiceNavigator();
-          if (this.voiceNavigator) {
-            this.voiceNavigator.start();
-          }
+          // Wait a moment for initialization then start
+          setTimeout(async () => {
+            if (this.voiceNavigator) {
+              try {
+                await this.voiceNavigator.start();
+                this.voiceEnabled = true;
+              } catch (error) {
+                console.warn('TremorSense: Could not start voice control', error);
+              }
+            }
+          }, 500);
         } else {
           if (this.voiceNavigator) {
-            this.voiceNavigator.stop();
+            try {
+              this.voiceNavigator.stop();
+              this.voiceEnabled = false;
+            } catch (error) {
+              console.warn('TremorSense: Could not stop voice control', error);
+            }
           }
         }
-        this.voiceEnabled = message.enabled;
         chrome.storage.local.set({
           settings: { ...this.settings, voiceEnabled: message.enabled }
         });
@@ -1402,25 +1417,55 @@ class TremorSense {
 
   initializeVoiceNavigator() {
     // Initialize Voice Navigator if available
-    if (!this.voiceNavigator && typeof VoiceNavigator !== 'undefined') {
-      try {
-        this.voiceNavigator = new VoiceNavigator();
-        this.voiceEnabled = true;
-        console.log('TremorSense: Voice Navigator initialized successfully');
-        this.showNotification('🎤 Voice control ready! Press Ctrl+Shift+V to start');
-      } catch (error) {
-        console.warn('TremorSense: Could not initialize Voice Navigator', error);
-      }
+    if (this.voiceNavigator) {
+      console.log('TremorSense: Voice Navigator already initialized');
+      return;
+    }
+
+    // Check if VoiceNavigator class is available
+    if (typeof VoiceNavigator === 'undefined') {
+      console.log('TremorSense: VoiceNavigator class not yet loaded, retrying...');
+      // Try again in a moment
+      setTimeout(() => {
+        if (!this.voiceNavigator && typeof VoiceNavigator !== 'undefined') {
+          this.initializeVoiceNavigator();
+        }
+      }, 500);
+      return;
+    }
+
+    try {
+      this.voiceNavigator = new VoiceNavigator();
+      this.voiceEnabled = true;
+      console.log('TremorSense: Voice Navigator initialized successfully');
+
+      // Update shortcut message based on platform
+      const isMac = navigator.platform && navigator.platform.toUpperCase().indexOf('MAC') >= 0;
+      const shortcut = isMac ? 'Cmd+Shift+V' : 'Ctrl+Shift+V';
+      this.showNotification(`🎤 Voice control ready! Press ${shortcut} to start`);
+    } catch (error) {
+      console.warn('TremorSense: Could not initialize Voice Navigator', error);
+      // Don't retry on actual initialization errors
     }
   }
 
-  toggleVoiceControl() {
+  async toggleVoiceControl() {
     if (this.voiceNavigator) {
-      this.voiceNavigator.toggle();
-      this.voiceEnabled = !this.voiceEnabled;
-      this.showNotification(this.voiceEnabled ? '🎤 Voice control activated' : 'Voice control deactivated');
+      try {
+        await this.voiceNavigator.toggle();
+        this.voiceEnabled = !this.voiceEnabled;
+        this.showNotification(this.voiceEnabled ? '🎤 Voice control activated' : 'Voice control deactivated');
+      } catch (error) {
+        console.warn('TremorSense: Error toggling voice control', error);
+      }
     } else {
       this.initializeVoiceNavigator();
+      // Give it a moment to initialize then try to start
+      setTimeout(() => {
+        if (this.voiceNavigator) {
+          this.toggleVoiceControl();
+        }
+      }, 500);
     }
   }
 
