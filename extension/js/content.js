@@ -1527,7 +1527,13 @@ class TremorSense {
 
     sidebar.innerHTML = `
       <div class="sidebar-header">
-        <h3 class="sidebar-title">AI Control Summary</h3>
+        <div class="sidebar-logo">
+          <img src="${chrome.runtime.getURL('images/tremorsense-logo.png')}"
+               alt="TremorSense"
+               style="max-width: 180px; height: auto; margin-bottom: 10px;"
+               onerror="this.style.display='none'; document.getElementById('sidebar-title-text').style.display='block';">
+        </div>
+        <h3 class="sidebar-title" id="sidebar-title-text" style="display:none;">TremorSense AI</h3>
         <p class="sidebar-subtitle">Smart interface analysis</p>
         <button type="button" class="sidebar-toggle" aria-label="Toggle sidebar">→</button>
       </div>

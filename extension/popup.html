@@ -19,9 +19,15 @@
     <div class="popup-content">
       <!-- Header -->
       <div class="modern-header">
-        <div class="app-title">
-          <div class="app-icon">✦</div>
-          <h1 class="app-name">TremorSense</h1>
+        <div class="logo-container">
+          <img src="images/tremorsense-logo.png" alt="TremorSense" class="app-logo">
+          <!-- Fallback if image doesn't load -->
+          <div class="logo-fallback">
+            <svg viewBox="0 0 200 80" class="logo-svg">
+              <text x="10" y="50" fill="#8B2635" font-family="Arial" font-size="32" font-weight="300">Tremor</text>
+              <text x="110" y="50" fill="#1A1A1A" font-family="Arial" font-size="32" font-weight="600">Sense</text>
+            </svg>
+          </div>
         </div>
         <p class="app-tagline">Intelligent tremor detection & assistance</p>
       </div>

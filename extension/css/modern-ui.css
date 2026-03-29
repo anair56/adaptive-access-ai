@@ -1,9 +1,10 @@
 /* Modern UI Design System - Inspired by Devlab */
 
 :root {
-  /* Colors */
+  /* Colors - Updated with TremorSense brand colors */
   --primary-black: #000000;
-  --primary-red: #FF4444;
+  --primary-red: #8B2635; /* Deep red from logo */
+  --accent-red: #A8312F; /* Lighter red for hover states */
   --primary-blue: #4A90A4;
   --primary-teal: #67B8CC;
   --light-gray: #F5F5F7;
@@ -70,7 +71,7 @@
   position: absolute;
   border-radius: 50%;
   background: var(--primary-red);
-  opacity: 0.1;
+  opacity: 0.12;
   width: 200px;
   height: 200px;
   top: -50px;
@@ -83,7 +84,7 @@
   height: 0;
   border-left: 60px solid transparent;
   border-right: 60px solid transparent;
-  border-bottom: 100px solid var(--primary-teal);
+  border-bottom: 100px solid var(--accent-red);
   opacity: 0.08;
   bottom: 100px;
   left: 20px;
@@ -94,8 +95,8 @@
   position: absolute;
   width: 80px;
   height: 80px;
-  background: var(--primary-black);
-  opacity: 0.05;
+  background: var(--primary-red);
+  opacity: 0.06;
   transform: rotate(45deg);
   top: 200px;
   right: 40px;
@@ -110,39 +111,57 @@
 
 /* Header Section */
 .modern-header {
-  margin-bottom: var(--space-2xl);
+  margin-bottom: var(--space-xl);
+  text-align: center;
 }
 
-.app-title {
-  display: flex;
-  align-items: center;
-  gap: var(--space-md);
-  margin-bottom: var(--space-sm);
-}
-
-.app-icon {
-  width: 40px;
-  height: 40px;
-  background: var(--primary-black);
-  border-radius: var(--radius-sm);
+.logo-container {
+  position: relative;
+  margin-bottom: var(--space-md);
+  height: 80px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 20px;
 }
 
-.app-name {
-  font-size: 24px;
-  font-weight: 700;
-  letter-spacing: -0.5px;
-  color: var(--primary-black);
+.app-logo {
+  max-width: 280px;
+  height: auto;
+  display: block;
+}
+
+.logo-fallback {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 100%;
+  display: none;
+}
+
+.app-logo:not([src]),
+.app-logo[src=""],
+.app-logo:not([src*="."]) {
+  display: none;
+}
+
+.app-logo:not([src]) ~ .logo-fallback,
+.app-logo[src=""] ~ .logo-fallback,
+.app-logo:not([src*="."]) ~ .logo-fallback {
+  display: block;
+}
+
+.logo-svg {
+  width: 100%;
+  height: auto;
 }
 
 .app-tagline {
-  font-size: 14px;
+  font-size: 13px;
   color: var(--dark-gray);
   opacity: 0.7;
-  margin-left: 56px;
+  text-align: center;
+  margin: 0;
 }
 
 /* Main Toggle Button */
