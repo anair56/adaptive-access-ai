@@ -81,16 +81,44 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // Toggle button handler
   toggleBtn.addEventListener('click', async () => {
+    if (!currentTab || !currentTab.id) {
+      showNotification('Unable to detect current tab', 'error');
+      return;
+    }
+
+    // Check if we're on a restricted page
+    if (currentTab.url && (currentTab.url.startsWith('chrome://') ||
+        currentTab.url.startsWith('chrome-extension://') ||
+        currentTab.url.startsWith('edge://') ||
+        currentTab.url.startsWith('about:'))) {
+      showNotification('Cannot run on browser pages', 'error');
+      return;
+    }
+
     try {
       const response = await chrome.tabs.sendMessage(currentTab.id, { type: 'TOGGLE' });
-      if (response.success) {
+      if (response && response.success) {
         isEnabled = !isEnabled;
         updateToggleUI();
         showNotification(isEnabled ? 'Accessibility enabled' : 'Accessibility disabled');
       }
     } catch (error) {
-      console.error('Failed to toggle:', error);
-      showNotification('Please refresh the page first', 'error');
+      console.log('Toggle error:', error.message);
+      // Try to inject the content script if it's not loaded
+      try {
+        await chrome.scripting.executeScript({
+          target: { tabId: currentTab.id },
+          files: ['js/content.js']
+        });
+        await chrome.scripting.insertCSS({
+          target: { tabId: currentTab.id },
+          files: ['css/accessibility.css']
+        });
+        showNotification('Extension loaded! Please try again', 'success');
+      } catch (injectError) {
+        console.log('Could not inject scripts:', injectError.message);
+        showNotification('Please refresh the page first', 'error');
+      }
     }
   });
 
@@ -120,9 +148,15 @@ document.addEventListener('DOMContentLoaded', async () => {
   aiSidebar.addEventListener('change', async (e) => {
     await updateSetting('showAISidebar', e.target.checked);
     // Send message to content script to toggle sidebar
-    await chrome.tabs.sendMessage(currentTab.id, {
-      type: e.target.checked ? 'SHOW_SIDEBAR' : 'HIDE_SIDEBAR'
-    });
+    try {
+      if (currentTab && currentTab.id) {
+        await chrome.tabs.sendMessage(currentTab.id, {
+          type: e.target.checked ? 'SHOW_SIDEBAR' : 'HIDE_SIDEBAR'
+        });
+      }
+    } catch (error) {
+      console.log('Could not toggle sidebar:', error.message);
+    }
   });
 
   // Update settings
@@ -135,10 +169,12 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // Send to content script
     try {
-      await chrome.tabs.sendMessage(currentTab.id, {
-        type: 'UPDATE_SETTINGS',
-        settings: { [key]: value }
-      });
+      if (currentTab && currentTab.id) {
+        await chrome.tabs.sendMessage(currentTab.id, {
+          type: 'UPDATE_SETTINGS',
+          settings: { [key]: value }
+        });
+      }
     } catch (error) {
       console.log('Settings will apply on next page load');
     }
@@ -245,14 +281,14 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // Auto-refresh metrics
   setInterval(async () => {
-    if (currentTab) {
+    if (currentTab && currentTab.id) {
       try {
         const response = await chrome.tabs.sendMessage(currentTab.id, { type: 'GET_STATUS' });
         if (response) {
           updateMetrics(response.metrics);
         }
       } catch (error) {
-        // Content script not loaded
+        // Content script not loaded - silently ignore
       }
     }
   }, 2000);
@@ -340,13 +376,5 @@ document.addEventListener('DOMContentLoaded', async () => {
   });
 }
 
-  // ------------------------------
-  // Footer buttons
-  // ------------------------------
-  document.getElementById('helpBtn').addEventListener('click', () => {
-    chrome.tabs.create({ url: 'https://github.com/anthropics/claude-code' });
-  });
-  document.getElementById('reportBtn').addEventListener('click', () => {
-    chrome.tabs.create({ url: 'https://github.com/anthropics/claude-code/issues' });
-  });
+  // Footer buttons removed in modern UI design
 });

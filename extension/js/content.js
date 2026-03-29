@@ -280,38 +280,42 @@ class TremorSense {
   }
 
   handleClick(e) {
-    const now = Date.now();
-    const timeSinceLastClick = now - this.metrics.lastClickTime;
-    this.metrics.lastClickTime = now;
-    this.metrics.totalClicks++;
+    try {
+      const now = Date.now();
+      const timeSinceLastClick = now - this.metrics.lastClickTime;
+      this.metrics.lastClickTime = now;
+      this.metrics.totalClicks++;
 
-    const target = e.target;
-    const isClickable = this.isClickableElement(target);
-    const nearest = this.findNearestClickable(e.clientX, e.clientY);
+      const target = e.target;
+      const isClickable = this.isClickableElement(target);
+      const nearest = this.findNearestClickable(e.clientX, e.clientY);
 
-    if (isClickable) {
-      this.metrics.successfulClicks++;
-      this.onSuccessfulClick(target, timeSinceLastClick);
-      if (this.interventionGeneration > 0) {
-        this.postAssistMissStreak = 0;
-        this.agentEscalation = false;
+      if (isClickable) {
+        this.metrics.successfulClicks++;
+        this.onSuccessfulClick(target, timeSinceLastClick);
+        if (this.interventionGeneration > 0) {
+          this.postAssistMissStreak = 0;
+          this.agentEscalation = false;
+        }
+      } else {
+        const empty = this.isEmptySpace(target);
+        const nearMiss =
+          nearest &&
+          nearest.distance > 4 &&
+          nearest.distance < 115 &&
+          !this.motorRailEl?.contains(target);
+
+        if (empty || nearMiss) {
+          this.recordMissClick(e, nearest);
+        } else if (timeSinceLastClick < 450 && nearest && nearest.distance >= 115) {
+          this.recordMissClick(e, nearest);
+        }
       }
-    } else {
-      const empty = this.isEmptySpace(target);
-      const nearMiss =
-        nearest &&
-        nearest.distance > 4 &&
-        nearest.distance < 115 &&
-        !this.motorRailEl?.contains(target);
 
-      if (empty || nearMiss) {
-        this.recordMissClick(e, nearest);
-      } else if (timeSinceLastClick < 450 && nearest && nearest.distance >= 115) {
-        this.recordMissClick(e, nearest);
-      }
+      this.updateAccuracy();
+    } catch (err) {
+      console.warn('TremorSense: Error handling click', err);
     }
-
-    this.updateAccuracy();
   }
 
   handleMouseDown(e) {
@@ -367,7 +371,11 @@ class TremorSense {
       }
     }
 
-    this.showClickFeedback(x, y, false);
+    try {
+      this.showClickFeedback(x, y, false);
+    } catch (err) {
+      console.warn('TremorSense: Error showing click feedback', err);
+    }
   }
 
   analyzeMissClickPattern() {
@@ -415,24 +423,33 @@ class TremorSense {
 
     this.agenticCooldownUntil = now + 11000;
     const el = this.agenticFocusElement;
-    // Call async function and handle errors properly
-    this.requestAccessibilityHelp(el, { escalation: this.agentEscalation }).catch(err => {
-      console.warn('TremorSense: Error in assist loop', err);
-    });
+    // Only call if we have a valid element
+    if (el && el.nodeType === 1) {
+      this.requestAccessibilityHelp(el, { escalation: this.agentEscalation }).catch(err => {
+        console.warn('TremorSense: Error in assist loop', err);
+      });
+    } else {
+      console.log('TremorSense: No valid element for accessibility help');
+    }
   }
 
   async requestAccessibilityHelp(element, opts = {}) {
     const payloadElement =
-      element &&
-      (element.nodeType === 1
+      element && element.nodeType === 1
         ? {
-            tagName: element.tagName,
-            className: element.className,
-            id: element.id,
-            text: element.textContent?.substring(0, 80),
-            rect: element.getBoundingClientRect()
+            tagName: element.tagName || 'UNKNOWN',
+            className: element.className || '',
+            id: element.id || '',
+            text: (element.textContent || '').substring(0, 80),
+            rect: element.getBoundingClientRect ? element.getBoundingClientRect() : {}
           }
-        : element);
+        : null;
+
+    // Only proceed if we have a valid payload
+    if (!payloadElement) {
+      console.log('TremorSense: No valid element to request help for');
+      return;
+    }
 
     try {
       const response = await chrome.runtime.sendMessage({
@@ -450,7 +467,7 @@ class TremorSense {
 
       if (response?.success && Array.isArray(response.recommendations)) {
         this.interventionGeneration++;
-        if (response.recommendations.length) {
+        if (response.recommendations.length && element) {
           this.applyHermesRecommendations(element, response.recommendations);
         } else {
           // Disabled motor rail - using AI sidebar instead
@@ -477,6 +494,7 @@ class TremorSense {
     if (!Array.isArray(functions)) return [];
     const recs = [];
     for (const func of functions) {
+      if (!func || typeof func !== 'object') continue;
       const name = func.name;
       const a = func.arguments || {};
       switch (name) {
@@ -790,14 +808,20 @@ class TremorSense {
     let minDistance = Infinity;
 
     this.clickableElements.forEach(element => {
-      const rect = element.getBoundingClientRect();
-      const centerX = rect.left + rect.width / 2;
-      const centerY = rect.top + rect.height / 2;
-      const distance = Math.sqrt(Math.pow(x - centerX, 2) + Math.pow(y - centerY, 2));
+      try {
+        if (!element || !element.isConnected) return;
+        const rect = element.getBoundingClientRect();
+        const centerX = rect.left + rect.width / 2;
+        const centerY = rect.top + rect.height / 2;
+        const distance = Math.sqrt(Math.pow(x - centerX, 2) + Math.pow(y - centerY, 2));
 
-      if (distance < minDistance) {
-        minDistance = distance;
-        nearest = element;
+        if (distance < minDistance) {
+          minDistance = distance;
+          nearest = element;
+        }
+      } catch (err) {
+        // Element might have been removed from DOM
+        console.debug('TremorSense: Skipping element in findNearestClickable', err);
       }
     });
 
