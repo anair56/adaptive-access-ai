@@ -12,6 +12,12 @@ class TremorSense {
       autoAdapt: true
     };
 
+    // Sites where we should not apply magnetic targeting or visual enhancements
+    this.excludedSites = ['mail.google.com', 'gmail.com'];
+    this.isExcludedSite = this.excludedSites.some(site =>
+      window.location.hostname.includes(site)
+    );
+
     this.metrics = {
       missClicks: [],
       successfulClicks: 0,
@@ -43,6 +49,16 @@ class TremorSense {
     this.motorRailChipTargets = new WeakMap();
     this.agentSessionForWindow = false;
 
+    // Store interval IDs for cleanup
+    this.monitoringIntervals = [];
+
+    // Store bound event handlers for cleanup
+    this.boundHandlers = {
+      handleMouseMove: this.handleMouseMove.bind(this),
+      handleClick: this.handleClick.bind(this),
+      handleMouseDown: this.handleMouseDown.bind(this)
+    };
+
     this.init();
   }
 
@@ -54,6 +70,8 @@ class TremorSense {
     }
     if (stored.settings) {
       this.settings = { ...this.settings, ...stored.settings };
+      console.log('TremorSense: Loaded settings:', this.settings);
+      console.log('TremorSense: enlargeScale is:', this.settings.enlargeScale);
       // Check if AI sidebar should be shown (default to true if not set)
       if (stored.settings.showAISidebar !== false && stored.enabled) {
         this.createAISidebar();
@@ -76,11 +94,11 @@ class TremorSense {
 
   setupEventListeners() {
     // Track mouse movement
-    document.addEventListener('mousemove', this.handleMouseMove.bind(this), true);
+    document.addEventListener('mousemove', this.boundHandlers.handleMouseMove, true);
 
     // Track clicks
-    document.addEventListener('click', this.handleClick.bind(this), true);
-    document.addEventListener('mousedown', this.handleMouseDown.bind(this), true);
+    document.addEventListener('click', this.boundHandlers.handleClick, true);
+    document.addEventListener('mousedown', this.boundHandlers.handleMouseDown, true);
 
     // Mutation observer for dynamic content
     const observer = new MutationObserver(() => {
@@ -185,14 +203,18 @@ class TremorSense {
         this.applyCursorSlowdown(distance);
       }
 
-      // Enhance element if not already enhanced
-      if (!this.enhancedElements.has(element)) {
+      // Only enhance if tremor is detected
+      if (!this.enhancedElements.has(element) && this.metrics.tremorDetected) {
+        console.log('TremorSense: Enhancing element due to tremor detection');
         this.enhanceElement(element);
       }
     }
   }
 
   applyMagneticEffect(element, distance) {
+    // Skip on excluded sites
+    if (this.isExcludedSite) return;
+
     // Calculate magnetic pull strength
     const pullStrength = (1 - distance / 100) * (this.settings.magneticStrength / 100);
 
@@ -225,6 +247,9 @@ class TremorSense {
   }
 
   enhanceElement(element) {
+    // Skip on excluded sites
+    if (this.isExcludedSite) return;
+
     const rect = element.getBoundingClientRect();
 
     // Skip if element is already reasonably sized
@@ -233,22 +258,17 @@ class TremorSense {
     // Mark as enhanced
     this.enhancedElements.add(element);
 
-    // Store original styles
-    element.dataset.originalPadding = element.style.padding || '';
-    element.dataset.originalFontSize = element.style.fontSize || '';
+    // Store original styles so we can restore them later
+    element.dataset.originalTransform = element.style.transform || '';
+    element.dataset.originalTransition = element.style.transition || '';
+    element.dataset.originalZIndex = element.style.zIndex || '';
 
-    // Enhance based on element type
-    if (element.tagName === 'BUTTON' || element.tagName === 'A') {
-      // Increase padding for better hit target
-      const currentPadding = parseInt(window.getComputedStyle(element).padding) || 0;
-      element.style.padding = `${Math.max(8, currentPadding * 1.5)}px`;
-
-      // Increase font size slightly
-      const currentFontSize = parseInt(window.getComputedStyle(element).fontSize) || 12;
-      if (currentFontSize < 14) {
-        element.style.fontSize = '14px';
-      }
-    }
+    // Apply scale based on current slider setting
+    console.log('TremorSense: Enhancing element after miss-click, scale:', this.settings.enlargeScale);
+    element.style.transform = `scale(${this.settings.enlargeScale})`;
+    element.style.transformOrigin = 'center';
+    element.style.transition = 'transform 0.3s ease';
+    element.style.zIndex = '1000';
 
     // Add accessibility indicator
     element.classList.add('aa-enhanced');
@@ -395,7 +415,10 @@ class TremorSense {
 
     this.agenticCooldownUntil = now + 11000;
     const el = this.agenticFocusElement;
-    this.requestAccessibilityHelp(el, { escalation: this.agentEscalation });
+    // Call async function and handle errors properly
+    this.requestAccessibilityHelp(el, { escalation: this.agentEscalation }).catch(err => {
+      console.warn('TremorSense: Error in assist loop', err);
+    });
   }
 
   async requestAccessibilityHelp(element, opts = {}) {
@@ -411,37 +434,42 @@ class TremorSense {
           }
         : element);
 
-    const response = await chrome.runtime.sendMessage({
-      type: 'ACCESSIBILITY_HELP_NEEDED',
-      data: {
-        element: payloadElement,
-        metrics: {
-          ...this.metrics,
+    try {
+      const response = await chrome.runtime.sendMessage({
+        type: 'ACCESSIBILITY_HELP_NEEDED',
+        data: {
+          element: payloadElement,
+          metrics: {
+            ...this.metrics,
+            escalation: opts.escalation === true
+          },
+          url: window.location.href,
           escalation: opts.escalation === true
-        },
-        url: window.location.href,
-        escalation: opts.escalation === true
-      }
-    });
+        }
+      });
 
-    if (response?.success && Array.isArray(response.recommendations)) {
-      this.interventionGeneration++;
-      if (response.recommendations.length) {
-        this.applyHermesRecommendations(element, response.recommendations);
+      if (response?.success && Array.isArray(response.recommendations)) {
+        this.interventionGeneration++;
+        if (response.recommendations.length) {
+          this.applyHermesRecommendations(element, response.recommendations);
+        } else {
+          // Disabled motor rail - using AI sidebar instead
+          // this.showMotorShortcutRail({
+          //   fromAgent: false,
+          //   announce: 'Opened shortcuts from your recent click pattern.'
+          // });
+        }
       } else {
+        this.interventionGeneration++;
         // Disabled motor rail - using AI sidebar instead
         // this.showMotorShortcutRail({
         //   fromAgent: false,
-        //   announce: 'Opened shortcuts from your recent click pattern.'
+        //   announce: 'Showing local shortcuts while the AI service is offline.'
         // });
       }
-    } else {
-      this.interventionGeneration++;
-      // Disabled motor rail - using AI sidebar instead
-      // this.showMotorShortcutRail({
-      //   fromAgent: false,
-      //   announce: 'Showing local shortcuts while the AI service is offline.'
-      // });
+    } catch (err) {
+      // Ignore errors when extension context is invalidated
+      console.warn('TremorSense: Failed to request accessibility help', err);
     }
   }
 
@@ -485,7 +513,7 @@ class TremorSense {
     recommendations.forEach(rec => {
       switch (rec.action) {
         case 'enlarge':
-          if (target) this.enlargeElement(target, rec.scale || 1.5);
+          if (target) this.enlargeElement(target, rec.scale || this.settings.enlargeScale);
           break;
         case 'add_magnetic':
           if (target) this.addPermanentMagneticField(target, rec.strength || 80);
@@ -824,12 +852,16 @@ class TremorSense {
       }
     });
 
-    if (issues > 0 && this.enabled && this.settings.autoAdapt) {
-      this.autoFixAccessibilityIssues();
-    }
+    // Don't auto-fix on page load - only enlarge after missed clicks
+    // if (issues > 0 && this.enabled && this.settings.autoAdapt) {
+    //   this.autoFixAccessibilityIssues();
+    // }
   }
 
   autoFixAccessibilityIssues() {
+    // Only fix small targets if tremor is detected
+    if (!this.metrics.tremorDetected) return;
+
     // Fix small targets
     document.querySelectorAll('.aa-small-target').forEach(element => {
       if (!this.enhancedElements.has(element)) {
@@ -912,39 +944,95 @@ class TremorSense {
     }
 
     // Auto-enable if not already
-    if (!this.enabled && this.settings.autoAdapt) {
-      this.enable();
-      this.showNotification('Tremor detected - enabling accessibility features');
+    if (!this.enabled && this.settings && this.settings.autoAdapt) {
+      try {
+        if (typeof this.enable === 'function') {
+          this.enable();
+        }
+        if (typeof this.showNotification === 'function') {
+          this.showNotification('Tremor detected - enabling accessibility features');
+        }
+      } catch (err) {
+        console.warn('TremorSense: Error auto-enabling on tremor detection', err);
+      }
     }
   }
 
   estimateTremorFrequency() {
-    if (this.tremorBuffer.length < 2) return 0;
+    if (!this.tremorBuffer || this.tremorBuffer.length < 2) return 0;
 
     let changes = 0;
     for (let i = 1; i < this.tremorBuffer.length; i++) {
       const prev = this.tremorBuffer[i - 1];
       const curr = this.tremorBuffer[i];
+      // Add null checks for prev and curr
+      if (!prev || !curr || prev.vx === undefined || curr.vx === undefined) continue;
       if (Math.sign(prev.vx) !== Math.sign(curr.vx)) changes++;
     }
 
-    const timeSpan = (this.tremorBuffer[this.tremorBuffer.length - 1].time - this.tremorBuffer[0].time) / 1000;
+    const firstItem = this.tremorBuffer[0];
+    const lastItem = this.tremorBuffer[this.tremorBuffer.length - 1];
+    if (!firstItem || !lastItem || !firstItem.time || !lastItem.time) return 0;
+
+    const timeSpan = (lastItem.time - firstItem.time) / 1000;
+    if (timeSpan <= 0) return 0;
+
     return changes / timeSpan / 2; // Hz
   }
 
   onSuccessfulClick(element, timeToClick) {
+    // Check if element exists before accessing its properties
+    if (!element) return;
+
     // Send success metric
-    chrome.runtime.sendMessage({
-      type: 'CLICK_SUCCESS',
-      data: {
-        element: element.tagName,
-        timeToClick: timeToClick,
-        enhanced: this.enhancedElements.has(element)
-      }
-    });
+    try {
+      chrome.runtime.sendMessage({
+        type: 'CLICK_SUCCESS',
+        data: {
+          element: element.tagName || 'UNKNOWN',
+          timeToClick: timeToClick,
+          enhanced: this.enhancedElements.has(element)
+        }
+      });
+    } catch (err) {
+      // Ignore errors when extension context is invalidated
+    }
+
+    // Shrink element back to normal size after 0.5 seconds
+    if (this.enhancedElements.has(element)) {
+      console.log('TremorSense: Will restore element to normal size in 0.5 seconds');
+
+      setTimeout(() => {
+        // Check if element is still in DOM and still enhanced
+        if (element && element.isConnected && this.enhancedElements.has(element)) {
+          console.log('TremorSense: Restoring element to normal size');
+
+          // Animate back to normal size
+          element.style.transform = element.dataset.originalTransform || '';
+          element.style.transition = 'transform 0.3s ease';
+          element.style.zIndex = element.dataset.originalZIndex || '';
+
+          // Clean up after transition
+          setTimeout(() => {
+            if (element && element.isConnected) {
+              element.style.transition = element.dataset.originalTransition || '';
+
+              // Clean up dataset
+              delete element.dataset.originalTransform;
+              delete element.dataset.originalTransition;
+              delete element.dataset.originalZIndex;
+
+              // Remove from enhanced set
+              this.enhancedElements.delete(element);
+              element.classList.remove('aa-enhanced');
+            }
+          }, 300); // Wait for transition to complete
+        }
+      }, 500); // Wait 0.5 seconds before shrinking
+    }
 
     // Remove magnetic effect
-    if (element.dataset.magnetic) {
+    if (element && element.dataset && element.dataset.magnetic) {
       delete element.dataset.magnetic;
       element.style.transform = '';
       element.style.boxShadow = '';
@@ -957,36 +1045,55 @@ class TremorSense {
         (this.metrics.successfulClicks / this.metrics.totalClicks) * 100
       );
 
-      // Send to popup
-      chrome.runtime.sendMessage({
-        type: 'METRICS_UPDATE',
-        data: this.metrics
-      });
+      // Send to popup (with error handling for disconnected extension)
+      try {
+        chrome.runtime.sendMessage({
+          type: 'METRICS_UPDATE',
+          data: this.metrics
+        });
+      } catch (err) {
+        // Ignore errors when extension context is invalidated
+      }
     }
   }
 
   startMonitoring() {
+    // Clear any existing intervals
+    this.stopMonitoring();
+
     // Periodic accessibility check
-    setInterval(() => {
+    const scanInterval = setInterval(() => {
       if (this.enabled) {
         this.scanForClickableElements();
         this.cleanupMagneticTargets();
       }
     }, 5000);
+    this.monitoringIntervals.push(scanInterval);
 
     // Report metrics periodically
-    setInterval(() => {
+    const metricsInterval = setInterval(() => {
       if (this.metrics.totalClicks > 0) {
-        chrome.runtime.sendMessage({
-          type: 'METRICS_REPORT',
-          data: {
-            ...this.metrics,
-            url: window.location.href,
-            timestamp: Date.now()
-          }
-        });
+        try {
+          chrome.runtime.sendMessage({
+            type: 'METRICS_REPORT',
+            data: {
+              ...this.metrics,
+              url: window.location.href,
+              timestamp: Date.now()
+            }
+          });
+        } catch (err) {
+          // Ignore errors when extension context is invalidated
+        }
       }
     }, 30000);
+    this.monitoringIntervals.push(metricsInterval);
+  }
+
+  stopMonitoring() {
+    // Clear all monitoring intervals
+    this.monitoringIntervals.forEach(interval => clearInterval(interval));
+    this.monitoringIntervals = [];
   }
 
   cleanupMagneticTargets() {
@@ -1019,8 +1126,20 @@ class TremorSense {
         break;
 
       case 'UPDATE_SETTINGS':
+        console.log('TremorSense: Updating settings', message.settings);
         this.settings = { ...this.settings, ...message.settings };
         chrome.storage.local.set({ settings: this.settings });
+
+        // If enlargeScale changed, update any currently enhanced elements
+        if (message.settings.enlargeScale !== undefined && this.enhancedElements.size > 0) {
+          console.log('TremorSense: Updating scale for', this.enhancedElements.size, 'enhanced elements');
+          this.enhancedElements.forEach(el => {
+            if (el && el.isConnected) {
+              el.style.transform = `scale(${message.settings.enlargeScale})`;
+            }
+          });
+        }
+
         sendResponse({ success: true });
         break;
 
@@ -1086,6 +1205,19 @@ class TremorSense {
 
     // Remove AI sidebar
     this.removeSidebar();
+
+    // Stop monitoring intervals to prevent memory leaks
+    this.stopMonitoring();
+
+    // Remove event listeners to prevent memory leaks
+    this.removeEventListeners();
+  }
+
+  removeEventListeners() {
+    // Remove mouse event listeners
+    document.removeEventListener('mousemove', this.boundHandlers.handleMouseMove, true);
+    document.removeEventListener('click', this.boundHandlers.handleClick, true);
+    document.removeEventListener('mousedown', this.boundHandlers.handleMouseDown, true);
   }
 
   toggle() {
@@ -1094,6 +1226,21 @@ class TremorSense {
     } else {
       this.enable();
     }
+  }
+
+  updateEnhancedElementsScale() {
+    // Update scale for all enhanced elements
+    console.log('TremorSense: Updating scale for', this.enhancedElements.size, 'enhanced elements');
+    this.enhancedElements.forEach(element => {
+      if (element && element.isConnected) {
+        const rect = element.getBoundingClientRect();
+        // Apply scale to all enhanced elements regardless of size for testing
+        console.log('TremorSense: Setting scale to', this.settings.enlargeScale);
+        element.style.transform = `scale(${this.settings.enlargeScale})`;
+        element.style.transformOrigin = 'center';
+        element.style.transition = 'transform 0.3s ease';
+      }
+    });
   }
 
   cleanupEnhancements() {
@@ -1194,12 +1341,22 @@ class TremorSense {
     loadingIndicator.style.display = 'block';
     controlsContainer.innerHTML = '';
 
-    // Find all interactive elements
-    const buttons = Array.from(document.querySelectorAll('button:not(.aa-ai-sidebar button):not(.aa-ai-sidebar__toggle):not(.aa-ai-sidebar__refresh):not(.aa-motor-rail button)'));
-    const links = Array.from(document.querySelectorAll('a[href]:not(.aa-ai-sidebar a)'));
-    const inputs = Array.from(document.querySelectorAll('input:not(.aa-ai-sidebar input)'));
-    const selects = Array.from(document.querySelectorAll('select:not(.aa-ai-sidebar select)'));
-    const sliders = Array.from(document.querySelectorAll('input[type="range"]:not(.aa-ai-sidebar input)'));
+    // Find all interactive elements (excluding sidebar elements)
+    const buttons = Array.from(document.querySelectorAll('button')).filter(btn =>
+      !btn.closest('#aa-ai-sidebar') && !btn.closest('.aa-motor-rail')
+    );
+    const links = Array.from(document.querySelectorAll('a[href]')).filter(link =>
+      !link.closest('#aa-ai-sidebar')
+    );
+    const inputs = Array.from(document.querySelectorAll('input')).filter(input =>
+      !input.closest('#aa-ai-sidebar')
+    );
+    const selects = Array.from(document.querySelectorAll('select')).filter(select =>
+      !select.closest('#aa-ai-sidebar')
+    );
+    const sliders = Array.from(document.querySelectorAll('input[type="range"]')).filter(slider =>
+      !slider.closest('#aa-ai-sidebar')
+    );
 
     // Group and summarize controls
     const controlGroups = [];
@@ -1364,8 +1521,41 @@ class TremorSense {
             // Trigger the element after a short delay
             setTimeout(() => {
               try {
+                // Special handling for Gmail search button
+                const isGmailSearch = window.location.hostname.includes('mail.google.com') &&
+                  (item.text?.toLowerCase().includes('search') ||
+                   item.element.getAttribute('aria-label')?.toLowerCase().includes('search'));
+
+                if (isGmailSearch) {
+                  // For Gmail search, check if it's part of a form and submit it
+                  const form = item.element.closest('form');
+                  if (form) {
+                    // Submit the form
+                    form.submit();
+                  } else {
+                    // Try keyboard Enter event which Gmail might be listening for
+                    const enterEvent = new KeyboardEvent('keydown', {
+                      bubbles: true,
+                      cancelable: true,
+                      view: window,
+                      key: 'Enter',
+                      keyCode: 13,
+                      which: 13
+                    });
+
+                    // Focus on search input first if it exists
+                    const searchInput = document.querySelector('input[aria-label*="Search"]');
+                    if (searchInput) {
+                      searchInput.focus();
+                      searchInput.dispatchEvent(enterEvent);
+                    }
+
+                    // Also try clicking the button normally
+                    item.element.click();
+                  }
+                }
                 // For links, use native click
-                if (item.element.tagName === 'A') {
+                else if (item.element.tagName === 'A') {
                   const clickEvent = new MouseEvent('click', {
                     bubbles: true,
                     cancelable: true,

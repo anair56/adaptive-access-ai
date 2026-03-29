@@ -195,26 +195,18 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // Check WebSocket status
   async function checkWebSocketStatus() {
+    // Status indicator was removed in new design
+    // Just log the status for debugging if needed
     try {
       const response = await chrome.runtime.sendMessage({ type: 'GET_STATUS' });
-      if (response.wsConnected) {
-        statusIndicator.classList.add('connected');
-      } else {
-        statusIndicator.classList.add('error');
-      }
+      console.log('WebSocket status:', response.wsConnected ? 'connected' : 'disconnected');
     } catch (error) {
-      statusIndicator.classList.add('error');
+      console.log('Could not get WebSocket status:', error);
     }
   }
 
-  // Footer buttons
-  document.getElementById('helpBtn').addEventListener('click', () => {
-    chrome.tabs.create({ url: 'https://github.com/anthropics/claude-code' });
-  });
-
-  document.getElementById('reportBtn').addEventListener('click', () => {
-    chrome.tabs.create({ url: 'https://github.com/anthropics/claude-code/issues' });
-  });
+  // Footer buttons - removed as they don't exist in new design
+  // Help and report buttons were removed in the modern UI redesign
 
   // Show notification
   function showNotification(message, type = 'success') {

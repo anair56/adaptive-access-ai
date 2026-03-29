@@ -14,9 +14,9 @@
 .aa-enhanced::before {
   content: '';
   position: absolute;
-  inset: -5px;
-  border: 2px dashed rgba(0, 255, 136, 0.3);
-  border-radius: 8px;
+  inset: -1px; /* Very tight outline */
+  border: 1px dashed rgba(0, 255, 136, 0.2); /* Thinner border and more subtle */
+  border-radius: 2px; /* Minimal radius */
   pointer-events: none;
   opacity: 0;
   transition: opacity 0.3s;
@@ -29,7 +29,7 @@
 /* Enlarged elements */
 .aa-enlarged {
   transform-origin: center !important;
-  z-index: 1000 !important;
+  z-index: 100 !important; /* Reduced z-index to minimize disruption */
   position: relative !important;
 }
 
@@ -61,8 +61,8 @@
 
 /* Small target indicators */
 .aa-small-target {
-  outline: 2px solid rgba(255, 68, 68, 0.5) !important;
-  outline-offset: 2px;
+  outline: 1px solid rgba(255, 68, 68, 0.4) !important; /* Thinner and less opaque */
+  outline-offset: 1px; /* Tighter offset */
 }
 
 /* Low contrast indicators */
