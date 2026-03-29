@@ -38,6 +38,14 @@ class TremorSense {
     this.tremorBuffer = [];
     this.magneticTargets = new Map();
     this.enhancedElements = new Set();
+    /** Per-element scale built up while tremor is detected near the target (weak values: { scale, lastBumpAt }) */
+    this.tremorTargetScale = new WeakMap();
+    /** Subset of elements with a tremor boost; iterated to refresh transforms when pointer moves */
+    this.tremorBoostedElements = new Set();
+    /** When no tremor enlargement is active, magnetic proximity still changes transform; track prior node to clear. */
+    this.lastMagneticOnlyEl = null;
+    /** Background tremor assist raised the minimum enlargement cap (no element required). */
+    this.tremorAutoAssistActive = false;
     this.clickableElements = new Set();
 
     this.agenticFocusElement = null;
@@ -53,6 +61,8 @@ class TremorSense {
     this.onRailKeydownBound = this.onRailHotkey.bind(this);
     this.motorRailChipTargets = new WeakMap();
     this.agentSessionForWindow = false;
+    /** Previous mouse sample for velocity when movementX/Y are zero */
+    this._prevMoveSample = null;
 
     // Store interval IDs for cleanup
     this.monitoringIntervals = [];
@@ -68,17 +78,15 @@ class TremorSense {
   }
 
   async init() {
-    // Load settings from storage
     const stored = await chrome.storage.local.get(['enabled', 'settings']);
-    if (stored.enabled) {
-      this.enable();
-    }
     if (stored.settings) {
       this.settings = { ...this.settings, ...stored.settings };
       console.log('TremorSense: Loaded settings:', this.settings);
       console.log('TremorSense: enlargeScale is:', this.settings.enlargeScale);
-      // Check if AI sidebar should be shown (default to true if not set)
-      if (stored.settings.showAISidebar !== false && stored.enabled) {
+    }
+    if (stored.enabled) {
+      this.enable();
+      if (stored.settings?.showAISidebar !== false) {
         this.createAISidebar();
       }
       // Initialize voice control if it was enabled
@@ -132,21 +140,36 @@ class TremorSense {
   }
 
   handleMouseMove(e) {
-    // Store raw position
     this.mousePosition = { x: e.clientX, y: e.clientY };
 
-    // Calculate velocity
-    const dt = 0.016; // ~60fps
-    this.velocity.x = (e.movementX || 0) / dt;
-    this.velocity.y = (e.movementY || 0) / dt;
+    const now = Date.now();
+    const dtApprox = 0.016;
+    let vx = ((e.movementX || 0) / dtApprox);
+    let vy = ((e.movementY || 0) / dtApprox);
 
-    // Add to tremor buffer
+    const prev = this._prevMoveSample;
+    if (prev && now > prev.t) {
+      const dtSec = (now - prev.t) / 1000;
+      if (dtSec > 0.0005) {
+        const vxPos = (e.clientX - prev.x) / dtSec;
+        const vyPos = (e.clientY - prev.y) / dtSec;
+        if (e.movementX === 0 && e.movementY === 0) {
+          vx = vxPos;
+          vy = vyPos;
+        }
+      }
+    }
+    this._prevMoveSample = { x: e.clientX, y: e.clientY, t: now };
+
+    this.velocity.x = vx;
+    this.velocity.y = vy;
+
     this.tremorBuffer.push({
       x: e.clientX,
       y: e.clientY,
-      vx: this.velocity.x,
-      vy: this.velocity.y,
-      time: Date.now()
+      vx,
+      vy,
+      time: now
     });
 
     // Keep only last 500ms
@@ -168,6 +191,7 @@ class TremorSense {
     // Calculate jitter (rapid direction changes)
     let directionChanges = 0;
     let totalMagnitude = 0;
+    const nPairs = this.tremorBuffer.length - 1;
 
     for (let i = 1; i < this.tremorBuffer.length; i++) {
       const prev = this.tremorBuffer[i - 1];
@@ -181,11 +205,13 @@ class TremorSense {
       totalMagnitude += Math.sqrt(curr.vx * curr.vx + curr.vy * curr.vy);
     }
 
-    const avgMagnitude = totalMagnitude / this.tremorBuffer.length;
-    const changeRate = directionChanges / this.tremorBuffer.length;
+    const avgMagnitude = nPairs > 0 ? totalMagnitude / nPairs : 0;
+    const changeRate = nPairs > 0 ? directionChanges / nPairs : 0;
 
-    // Tremor detected if high frequency direction changes with moderate speed
-    const hasTremor = changeRate > 0.3 && avgMagnitude > 100 && avgMagnitude < 1000;
+    const hasTremor =
+      changeRate > 0.14 &&
+      avgMagnitude > 12 &&
+      avgMagnitude < 4200;
 
     if (hasTremor !== this.metrics.tremorDetected) {
       this.metrics.tremorDetected = hasTremor;
@@ -195,57 +221,164 @@ class TremorSense {
     }
   }
 
-  applyAccessibilityFeatures(e) {
-    // Find nearest clickable element
-    const nearest = this.findNearestClickable(e.clientX, e.clientY);
+  /** Looser than full tremor flag — backs up proximity enlargement when the pointer is unsteady near a control. */
+  bufferSuggestsUnsteadyHand() {
+    if (this.tremorBuffer.length < 8) return false;
+    let directionChanges = 0;
+    let totalMagnitude = 0;
+    const n = this.tremorBuffer.length - 1;
+    for (let i = 1; i < this.tremorBuffer.length; i++) {
+      const prev = this.tremorBuffer[i - 1];
+      const curr = this.tremorBuffer[i];
+      if (prev.vx * curr.vx + prev.vy * curr.vy < 0) directionChanges++;
+      totalMagnitude += Math.hypot(curr.vx, curr.vy);
+    }
+    const changeRate = directionChanges / n;
+    const avgMagnitude = totalMagnitude / n;
+    return changeRate > 0.1 && avgMagnitude > 6 && avgMagnitude < 5000;
+  }
 
-    if (nearest) {
-      const { element, distance } = nearest;
+  getTremorTargetScale(element) {
+    const st = this.tremorTargetScale.get(element);
+    return st && st.scale > 1 ? st.scale : 1;
+  }
 
-      // Apply magnetic effect if close enough
-      if (distance < 100) {
-        this.applyMagneticEffect(element, distance);
+  /**
+   * Grow hit target stepwise while tremor is active and pointer stays near control (debounced).
+   */
+  bumpTremorTargetScale(element) {
+    const cap = Math.max(
+      1.2,
+      this.settings.enlargeScale || 1.5,
+      this.tremorAutoAssistActive ? 1.72 : 0
+    );
+    const now = Date.now();
+    let state = this.tremorTargetScale.get(element);
+    if (!state) {
+      state = { scale: 1, lastBumpAt: 0 };
+      this.tremorTargetScale.set(element, state);
+    }
+    if (now - state.lastBumpAt < 380) return;
+    if (state.scale >= cap - 0.008) return;
+
+    const next = Math.min(state.scale * 1.14, cap);
+    if (next <= state.scale + 0.003) return;
+
+    state.scale = next;
+    state.lastBumpAt = now;
+    this.tremorBoostedElements.add(element);
+    this.ensureEnhancedChrome(element);
+  }
+
+  ensureEnhancedChrome(element) {
+    if (this.enhancedElements.has(element)) return;
+
+    this.enhancedElements.add(element);
+    element.dataset.originalTransform = element.style.transform || '';
+    element.dataset.originalTransition = element.style.transition || '';
+    element.dataset.originalZIndex = element.style.zIndex || '';
+    element.style.transition = 'transform 0.3s ease';
+    element.style.zIndex = '1000';
+    element.classList.add('aa-enhanced');
+
+    if (!element.getAttribute('aria-label')) {
+      element.setAttribute(
+        'aria-label',
+        `Enhanced for accessibility: ${element.textContent || element.value || 'Interactive element'}`
+      );
+    }
+  }
+
+  /** Recompute transform for every control that has a tremor scale (magnetic only on current nearest). */
+  refreshAllTremorTransforms(nearestElement, magneticScaleForNearest) {
+    for (const el of [...this.tremorBoostedElements]) {
+      if (!el.isConnected) {
+        this.tremorBoostedElements.delete(el);
+        this.tremorTargetScale.delete(el);
+        continue;
       }
-
-      // Apply cursor slowdown near targets
-      if (distance < 50) {
-        this.applyCursorSlowdown(distance);
-      }
-
-      // Only enhance if tremor is detected
-      if (!this.enhancedElements.has(element) && this.metrics.tremorDetected) {
-        console.log('TremorSense: Enhancing element due to tremor detection');
-        this.enhanceElement(element);
+      const t = this.getTremorTargetScale(el);
+      const mag = el === nearestElement ? magneticScaleForNearest : 1;
+      const combined = t * mag;
+      if (combined > 1.005) {
+        el.style.transform = `scale(${combined})`;
+        el.style.transformOrigin = 'center';
       }
     }
   }
 
-  applyMagneticEffect(element, distance) {
-    // Skip on excluded sites
-    if (this.isExcludedSite) return;
+  applyAccessibilityFeatures(e) {
+    if (!this.enabled || this.isExcludedSite) return;
 
-    // Calculate magnetic pull strength
-    const pullStrength = (1 - distance / 100) * (this.settings.magneticStrength / 100);
+    const nearest = this.findNearestClickable(e.clientX, e.clientY);
+    let magneticScale = 1;
+    let nearestEl = null;
+    let distanceNearest = Infinity;
 
-    if (pullStrength > 0.1) {
-      // Add visual indicator
-      if (!element.dataset.magnetic) {
-        element.dataset.magnetic = 'true';
-        element.style.transition = 'all 0.2s ease-out';
+    if (nearest) {
+      const { element, distance } = nearest;
+      nearestEl = element;
+      distanceNearest = distance;
+
+      if (distance < 50) {
+        this.applyCursorSlowdown(distance);
       }
 
-      // Scale element based on proximity
-      const scale = 1 + (pullStrength * 0.2);
-      element.style.transform = `scale(${scale})`;
+      if (distance < 100) {
+        const pullStrength = (1 - distance / 100) * (this.settings.magneticStrength / 100);
+        if (pullStrength > 0.1) {
+          if (!element.dataset.magnetic) {
+            element.dataset.magnetic = 'true';
+            element.style.transition = 'all 0.2s ease-out';
+          }
+          magneticScale = 1 + pullStrength * 0.28;
+          element.style.boxShadow = `0 0 ${20 * pullStrength}px rgba(0, 255, 136, ${pullStrength * 0.5})`;
+          this.magneticTargets.set(element, { strength: pullStrength, distance });
+        } else {
+          element.style.boxShadow = '';
+          delete element.dataset.magnetic;
+          this.magneticTargets.delete(element);
+        }
+      } else {
+        if (element.dataset.magnetic) {
+          element.style.boxShadow = '';
+          delete element.dataset.magnetic;
+          this.magneticTargets.delete(element);
+        }
+      }
 
-      // Add glow effect
-      element.style.boxShadow = `0 0 ${20 * pullStrength}px rgba(0, 255, 136, ${pullStrength * 0.5})`;
+      const TREMOR_NEAR_PX = 120;
+      const nearEnough = distance < TREMOR_NEAR_PX;
+      const assistMotion =
+        this.metrics.tremorDetected ||
+        (nearEnough && this.settings.autoAdapt && this.bufferSuggestsUnsteadyHand());
+      if (assistMotion && nearEnough) {
+        this.bumpTremorTargetScale(element);
+      }
+    }
 
-      // Store in magnetic targets
-      this.magneticTargets.set(element, {
-        strength: pullStrength,
-        distance: distance
-      });
+    if (this.tremorBoostedElements.size > 0) {
+      this.refreshAllTremorTransforms(nearestEl, magneticScale);
+      if (this.lastMagneticOnlyEl && this.lastMagneticOnlyEl.isConnected) {
+        this.lastMagneticOnlyEl.style.transform = '';
+      }
+      this.lastMagneticOnlyEl = null;
+    } else if (nearestEl && magneticScale > 1.01) {
+      if (
+        this.lastMagneticOnlyEl &&
+        this.lastMagneticOnlyEl !== nearestEl &&
+        this.lastMagneticOnlyEl.isConnected
+      ) {
+        this.lastMagneticOnlyEl.style.transform = '';
+      }
+      nearestEl.style.transform = `scale(${magneticScale})`;
+      nearestEl.style.transformOrigin = 'center';
+      this.lastMagneticOnlyEl = nearestEl;
+    } else {
+      if (this.lastMagneticOnlyEl && this.lastMagneticOnlyEl.isConnected) {
+        this.lastMagneticOnlyEl.style.transform = '';
+      }
+      this.lastMagneticOnlyEl = null;
     }
   }
 
@@ -256,36 +389,17 @@ class TremorSense {
   }
 
   enhanceElement(element) {
-    // Skip on excluded sites
     if (this.isExcludedSite) return;
 
     const rect = element.getBoundingClientRect();
-
-    // Skip if element is already reasonably sized
     if (rect.width >= 44 && rect.height >= 44) return;
 
-    // Mark as enhanced
-    this.enhancedElements.add(element);
-
-    // Store original styles so we can restore them later
-    element.dataset.originalTransform = element.style.transform || '';
-    element.dataset.originalTransition = element.style.transition || '';
-    element.dataset.originalZIndex = element.style.zIndex || '';
-
-    // Apply scale based on current slider setting
-    console.log('TremorSense: Enhancing element after miss-click, scale:', this.settings.enlargeScale);
-    element.style.transform = `scale(${this.settings.enlargeScale})`;
+    this.ensureEnhancedChrome(element);
+    const scale = Math.max(1.2, this.settings.enlargeScale || 1.5);
+    this.tremorTargetScale.set(element, { scale, lastBumpAt: Date.now() });
+    this.tremorBoostedElements.add(element);
+    element.style.transform = `scale(${scale})`;
     element.style.transformOrigin = 'center';
-    element.style.transition = 'transform 0.3s ease';
-    element.style.zIndex = '1000';
-
-    // Add accessibility indicator
-    element.classList.add('aa-enhanced');
-
-    // Add ARIA label
-    if (!element.getAttribute('aria-label')) {
-      element.setAttribute('aria-label', `Enhanced for accessibility: ${element.textContent || element.value || 'Interactive element'}`);
-    }
   }
 
   handleClick(e) {
@@ -570,6 +684,24 @@ class TremorSense {
     this.agentEscalation = false;
   }
 
+  /**
+   * Tremor-only assistance: does not require agenticFocusElement (unlike miss-click AI recs).
+   */
+  applyTremorAutoAssistance(recommendations) {
+    if (!this.enabled) return;
+
+    for (const rec of recommendations) {
+      if (rec.action === 'adjust_sensitivity' && typeof rec.sensitivity === 'number') {
+        this.applySensitivity(rec.sensitivity);
+      }
+    }
+
+    const mag = this.settings.magneticStrength || 70;
+    this.settings.magneticStrength = Math.min(100, Math.max(mag, 84));
+    this.tremorAutoAssistActive = true;
+    this.showNotification('Tremor assist: stronger magnetic pull and larger target cap.');
+  }
+
   applySensitivity(factor) {
     if (typeof factor !== 'number' || Number.isNaN(factor)) return;
     this.settings.sensitivity = Math.min(1, Math.max(0.12, factor));
@@ -790,7 +922,11 @@ class TremorSense {
   }
 
   enlargeElement(element, scale) {
-    element.style.transform = `scale(${scale})`;
+    const s = Math.max(1.1, scale || this.settings.enlargeScale);
+    this.ensureEnhancedChrome(element);
+    this.tremorTargetScale.set(element, { scale: s, lastBumpAt: Date.now() });
+    this.tremorBoostedElements.add(element);
+    element.style.transform = `scale(${s})`;
     element.style.transformOrigin = 'center';
     element.style.zIndex = '1000';
     element.classList.add('aa-enlarged');
@@ -812,6 +948,13 @@ class TremorSense {
     }
   }
 
+  /** Shortest distance from a point to the closed rectangle (0 if inside the box). */
+  pointToRectDistance(px, py, rect) {
+    const cx = px < rect.left ? rect.left : px > rect.right ? rect.right : px;
+    const cy = py < rect.top ? rect.top : py > rect.bottom ? rect.bottom : py;
+    return Math.hypot(px - cx, py - cy);
+  }
+
   findNearestClickable(x, y) {
     let nearest = null;
     let minDistance = Infinity;
@@ -820,16 +963,13 @@ class TremorSense {
       try {
         if (!element || !element.isConnected) return;
         const rect = element.getBoundingClientRect();
-        const centerX = rect.left + rect.width / 2;
-        const centerY = rect.top + rect.height / 2;
-        const distance = Math.sqrt(Math.pow(x - centerX, 2) + Math.pow(y - centerY, 2));
+        const distance = this.pointToRectDistance(x, y, rect);
 
         if (distance < minDistance) {
           minDistance = distance;
           nearest = element;
         }
       } catch (err) {
-        // Element might have been removed from DOM
         console.debug('TremorSense: Skipping element in findNearestClickable', err);
       }
     });
@@ -1031,37 +1171,34 @@ class TremorSense {
       // Ignore errors when extension context is invalidated
     }
 
-    // Shrink element back to normal size after 0.5 seconds
     if (this.enhancedElements.has(element)) {
       console.log('TremorSense: Will restore element to normal size in 0.5 seconds');
 
       setTimeout(() => {
-        // Check if element is still in DOM and still enhanced
         if (element && element.isConnected && this.enhancedElements.has(element)) {
           console.log('TremorSense: Restoring element to normal size');
 
-          // Animate back to normal size
+          this.tremorTargetScale.delete(element);
+          this.tremorBoostedElements.delete(element);
+
           element.style.transform = element.dataset.originalTransform || '';
           element.style.transition = 'transform 0.3s ease';
           element.style.zIndex = element.dataset.originalZIndex || '';
 
-          // Clean up after transition
           setTimeout(() => {
             if (element && element.isConnected) {
               element.style.transition = element.dataset.originalTransition || '';
 
-              // Clean up dataset
               delete element.dataset.originalTransform;
               delete element.dataset.originalTransition;
               delete element.dataset.originalZIndex;
 
-              // Remove from enhanced set
               this.enhancedElements.delete(element);
               element.classList.remove('aa-enhanced');
             }
-          }, 300); // Wait for transition to complete
+          }, 300);
         }
-      }, 500); // Wait 0.5 seconds before shrinking
+      }, 500);
     }
 
     // Remove magnetic effect
@@ -1130,13 +1267,18 @@ class TremorSense {
   }
 
   cleanupMagneticTargets() {
-    // Remove magnetic effects from distant elements
     this.magneticTargets.forEach((data, element) => {
       if (data.distance > 100) {
-        element.style.transform = '';
         element.style.boxShadow = '';
         delete element.dataset.magnetic;
         this.magneticTargets.delete(element);
+        const t = this.getTremorTargetScale(element);
+        if (t > 1.005) {
+          element.style.transform = `scale(${t})`;
+          element.style.transformOrigin = 'center';
+        } else if (!this.tremorBoostedElements.has(element)) {
+          element.style.transform = '';
+        }
       }
     });
   }
@@ -1164,11 +1306,17 @@ class TremorSense {
         chrome.storage.local.set({ settings: this.settings });
 
         // If enlargeScale changed, update any currently enhanced elements
-        if (message.settings.enlargeScale !== undefined && this.enhancedElements.size > 0) {
-          console.log('TremorSense: Updating scale for', this.enhancedElements.size, 'enhanced elements');
+        if (message.settings.enlargeScale !== undefined) {
+          const cap = Math.max(1.2, message.settings.enlargeScale);
+          this.tremorBoostedElements.forEach(el => {
+            if (!el.isConnected) return;
+            const st = this.tremorTargetScale.get(el);
+            if (st) st.scale = Math.min(st.scale, cap);
+          });
           this.enhancedElements.forEach(el => {
             if (el && el.isConnected) {
-              el.style.transform = `scale(${message.settings.enlargeScale})`;
+              const t = this.getTremorTargetScale(el);
+              el.style.transform = t > 1.005 ? `scale(${t})` : el.style.transform;
             }
           });
         }
@@ -1214,7 +1362,11 @@ class TremorSense {
 
       case 'AUTO_ASSISTANCE':
         this.interventionGeneration++;
-        this.applyHermesRecommendations(this.agenticFocusElement, message.recommendations || []);
+        if (message.source === 'tremor') {
+          this.applyTremorAutoAssistance(message.recommendations || []);
+        } else {
+          this.applyHermesRecommendations(this.agenticFocusElement, message.recommendations || []);
+        }
         sendResponse({ success: true });
         break;
 
@@ -1315,16 +1467,20 @@ class TremorSense {
   }
 
   updateEnhancedElementsScale() {
-    // Update scale for all enhanced elements
-    console.log('TremorSense: Updating scale for', this.enhancedElements.size, 'enhanced elements');
+    const cap = Math.max(1.2, this.settings.enlargeScale || 1.5);
+    this.tremorBoostedElements.forEach(el => {
+      if (!el.isConnected) return;
+      const st = this.tremorTargetScale.get(el);
+      if (st) st.scale = Math.min(st.scale, cap);
+    });
     this.enhancedElements.forEach(element => {
       if (element && element.isConnected) {
-        const rect = element.getBoundingClientRect();
-        // Apply scale to all enhanced elements regardless of size for testing
-        console.log('TremorSense: Setting scale to', this.settings.enlargeScale);
-        element.style.transform = `scale(${this.settings.enlargeScale})`;
-        element.style.transformOrigin = 'center';
-        element.style.transition = 'transform 0.3s ease';
+        const t = this.getTremorTargetScale(element);
+        if (t > 1.005) {
+          element.style.transform = `scale(${t})`;
+          element.style.transformOrigin = 'center';
+          element.style.transition = 'transform 0.3s ease';
+        }
       }
     });
   }
@@ -1335,8 +1491,8 @@ class TremorSense {
     this.interventionGeneration = 0;
     this.agenticFocusElement = null;
 
-    // Remove all enhancements
     this.enhancedElements.forEach(element => {
+      this.tremorTargetScale.delete(element);
       element.style.padding = element.dataset.originalPadding || '';
       element.style.fontSize = element.dataset.originalFontSize || '';
       element.classList.remove('aa-enhanced', 'aa-enlarged', 'aa-magnetic');
@@ -1347,7 +1503,10 @@ class TremorSense {
     });
 
     this.enhancedElements.clear();
+    this.tremorBoostedElements.clear();
     this.magneticTargets.clear();
+    this.lastMagneticOnlyEl = null;
+    this.tremorAutoAssistActive = false;
 
     // Remove all visual indicators
     document.querySelectorAll('.aa-small-target, .aa-low-contrast').forEach(el => {
