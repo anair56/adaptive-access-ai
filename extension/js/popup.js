@@ -19,6 +19,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const enlargeSlider = document.getElementById('enlargeSlider');
   const autoAdapt = document.getElementById('autoAdapt');
   const aiSidebar = document.getElementById('aiSidebar');
+  const voiceControl = document.getElementById('voiceControl');
 
   // Value displays
   const sensitivityValue = document.getElementById('sensitivityValue');
@@ -56,6 +57,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       enlargeSlider.value = storage.settings.enlargeScale * 100;
       autoAdapt.checked = storage.settings.autoAdapt;
       aiSidebar.checked = storage.settings.showAISidebar !== false; // Default to true
+      voiceControl.checked = storage.settings.voiceEnabled || false;
       updateSliderValues();
     }
 
@@ -156,6 +158,24 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
     } catch (error) {
       console.log('Could not toggle sidebar:', error.message);
+    }
+  });
+
+  voiceControl.addEventListener('change', async (e) => {
+    await updateSetting('voiceEnabled', e.target.checked);
+    // Send message to content script to toggle voice control
+    try {
+      if (currentTab && currentTab.id) {
+        await chrome.tabs.sendMessage(currentTab.id, {
+          type: 'TOGGLE_VOICE',
+          enabled: e.target.checked
+        });
+      }
+    } catch (error) {
+      console.log('Could not toggle voice control:', error.message);
+      if (e.target.checked) {
+        showNotification('Voice control will be available after page refresh', 'info');
+      }
     }
   });
 

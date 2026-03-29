@@ -1,9 +1,14 @@
 // TremorSense - Content Script
 // This runs on every webpage and provides real-time accessibility features
 
+// Dynamic import of Voice Navigator
+let VoiceNavigator = null;
+
 class TremorSense {
   constructor() {
     this.enabled = false;
+    this.voiceNavigator = null;
+    this.voiceEnabled = false;
     this.settings = {
       sensitivity: 0.5,
       magneticStrength: 70,
@@ -75,6 +80,10 @@ class TremorSense {
       // Check if AI sidebar should be shown (default to true if not set)
       if (stored.settings.showAISidebar !== false && stored.enabled) {
         this.createAISidebar();
+      }
+      // Initialize voice control if it was enabled
+      if (stored.settings.voiceEnabled && stored.enabled) {
+        this.initializeVoiceNavigator();
       }
     }
 
@@ -1177,6 +1186,24 @@ class TremorSense {
         sendResponse({ success: true });
         break;
 
+      case 'TOGGLE_VOICE':
+        if (message.enabled) {
+          this.initializeVoiceNavigator();
+          if (this.voiceNavigator) {
+            this.voiceNavigator.start();
+          }
+        } else {
+          if (this.voiceNavigator) {
+            this.voiceNavigator.stop();
+          }
+        }
+        this.voiceEnabled = message.enabled;
+        chrome.storage.local.set({
+          settings: { ...this.settings, voiceEnabled: message.enabled }
+        });
+        sendResponse({ success: true });
+        break;
+
       case 'GET_STATUS':
         sendResponse({
           enabled: this.enabled,
@@ -1216,6 +1243,33 @@ class TremorSense {
     if (this.settings.showAISidebar !== false) {
       this.createAISidebar();
     }
+
+    // Initialize Voice Navigator if available
+    this.initializeVoiceNavigator();
+  }
+
+  initializeVoiceNavigator() {
+    // Initialize Voice Navigator if available
+    if (!this.voiceNavigator && typeof VoiceNavigator !== 'undefined') {
+      try {
+        this.voiceNavigator = new VoiceNavigator();
+        this.voiceEnabled = true;
+        console.log('TremorSense: Voice Navigator initialized successfully');
+        this.showNotification('🎤 Voice control ready! Press Ctrl+Shift+V to start');
+      } catch (error) {
+        console.warn('TremorSense: Could not initialize Voice Navigator', error);
+      }
+    }
+  }
+
+  toggleVoiceControl() {
+    if (this.voiceNavigator) {
+      this.voiceNavigator.toggle();
+      this.voiceEnabled = !this.voiceEnabled;
+      this.showNotification(this.voiceEnabled ? '🎤 Voice control activated' : 'Voice control deactivated');
+    } else {
+      this.initializeVoiceNavigator();
+    }
   }
 
   disable() {
@@ -1235,6 +1289,14 @@ class TremorSense {
 
     // Remove event listeners to prevent memory leaks
     this.removeEventListeners();
+
+    // Disable voice navigator if active
+    if (this.voiceNavigator) {
+      this.voiceNavigator.stop();
+      this.voiceNavigator.destroy();
+      this.voiceNavigator = null;
+      this.voiceEnabled = false;
+    }
   }
 
   removeEventListeners() {
