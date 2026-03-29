@@ -12,6 +12,9 @@ class HermesAccessibilityService {
       problemSites: new Map()
     };
     this.activeTabData = new Map();
+    /** Single in-flight /analyze WS reply (avoids duplicate onmessage + waitFor listeners). */
+    this._hermesPending = null;
+    this._lastTremorAssistAtByTab = new Map();
     this.init();
   }
 
@@ -54,7 +57,22 @@ class HermesAccessibilityService {
       };
 
       this.ws.onmessage = (event) => {
-        const data = JSON.parse(event.data);
+        let data;
+        try {
+          data = JSON.parse(event.data);
+        } catch (e) {
+          console.warn('Hermes WS: non-JSON message', e);
+          return;
+        }
+
+        if (this._hermesPending && data.functions) {
+          clearTimeout(this._hermesPending.timeout);
+          const { resolve } = this._hermesPending;
+          this._hermesPending = null;
+          resolve(this.parseHermesFunctions(data.functions));
+          return;
+        }
+
         this.handleHermesResponse(data);
       };
 
@@ -255,36 +273,28 @@ class HermesAccessibilityService {
     return recommendations;
   }
 
-  async waitForHermesResponse() {
+  waitForHermesResponse() {
     return new Promise((resolve) => {
-      const timeout = setTimeout(() => {
-        resolve(this.getDefaultRecommendations({}));
-      }, 2000);
-
-      const handler = (event) => {
-        const data = JSON.parse(event.data);
-        if (data.functions) {
-          clearTimeout(timeout);
-          this.ws.removeEventListener('message', handler);
-          resolve(this.parseHermesFunctions(data.functions));
-        }
+      const pending = {
+        resolve,
+        timeout: setTimeout(() => {
+          if (this._hermesPending === pending) {
+            this._hermesPending = null;
+            resolve(this.getDefaultRecommendations({}));
+          }
+        }, 2000)
       };
-
-      this.ws.addEventListener('message', handler);
+      this._hermesPending = pending;
     });
   }
 
   handleHermesResponse(data) {
     console.log('Hermes response:', data);
 
-    // Send to active tab
     chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-      if (tabs[0]) {
-        chrome.tabs.sendMessage(tabs[0].id, {
-          type: 'HERMES_RESPONSE',
-          data: data
-        });
-      }
+      const tab = tabs[0];
+      if (!tab?.id) return;
+      chrome.tabs.sendMessage(tab.id, { type: 'HERMES_RESPONSE', data: data }).catch(() => {});
     });
   }
 
@@ -299,24 +309,33 @@ class HermesAccessibilityService {
       this.activeTabData.set(tabId, tabData);
     }
 
-    // Send automatic assistance
+    if (!tabId) return;
+
+    const now = Date.now();
+    const minMs = 12000;
+    const last = this._lastTremorAssistAtByTab.get(tabId) || 0;
+    if (now - last < minMs) return;
+
+    this._lastTremorAssistAtByTab.set(tabId, now);
     this.sendAutoAssistance(tabId);
   }
 
   async sendAutoAssistance(tabId) {
     if (!tabId) return;
 
-    // Send Hermes-powered assistance
+    // Content applies target-based actions only when agenticFocusElement is set (miss-click path).
+    // Tremor detection usually has no focus element, so only pass globals the content script handles here.
     const assistance = {
       type: 'AUTO_ASSISTANCE',
-      recommendations: [
-        { action: 'adjust_sensitivity', sensitivity: 0.3 },
-        { action: 'add_magnetic', strength: 60 },
-        { action: 'motor_shortcut_rail', prioritizeNearby: true }
-      ]
+      source: 'tremor',
+      recommendations: [{ action: 'adjust_sensitivity', sensitivity: 0.32 }]
     };
 
-    chrome.tabs.sendMessage(tabId, assistance);
+    try {
+      await chrome.tabs.sendMessage(tabId, assistance);
+    } catch (err) {
+      console.warn('sendAutoAssistance: tab may not have content script yet', err);
+    }
   }
 
   updateMetrics(data, tabId) {
@@ -370,10 +389,13 @@ class HermesAccessibilityService {
   }
 
   async toggleAccessibility() {
-    // Send toggle to active tab
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    if (tab) {
-      chrome.tabs.sendMessage(tab.id, { type: 'TOGGLE' });
+    if (tab?.id) {
+      try {
+        await chrome.tabs.sendMessage(tab.id, { type: 'TOGGLE' });
+      } catch (e) {
+        console.warn('toggleAccessibility: content script not available', e);
+      }
     }
   }
 
@@ -425,11 +447,6 @@ chrome.runtime.onInstalled.addListener((details) => {
         tremorThreshold: 5,
         autoAdapt: true
       }
-    });
-
-    // Open welcome page (local demo)
-    chrome.tabs.create({
-      url: 'chrome://extensions/'
     });
   }
 });
