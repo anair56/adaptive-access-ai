@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TremorSense Analytics Dashboard</title>
+  <link rel="stylesheet" href="css/modern-ui.css">
+  <link rel="stylesheet" href="css/analytics-dashboard.css">
+</head>
+<body>
+  <div class="dashboard-container">
+    <!-- Header -->
+    <header class="dashboard-header">
+      <div class="logo-section">
+        <img src="images/tremorsense-logo.png" alt="TremorSense" class="dashboard-logo">
+        <div class="logo-fallback">
+          <span class="logo-text">
+            <span style="color: #8B2635;">Tremor</span><span>Sense</span>
+          </span>
+        </div>
+      </div>
+      <h1 class="dashboard-title">AI Analytics Dashboard</h1>
+      <div class="ai-status">
+        <span class="ai-indicator"></span>
+        <span class="ai-label">AI Agent Active</span>
+      </div>
+    </header>
+
+    <!-- Main Grid -->
+    <div class="dashboard-grid">
+      <!-- Real-time Metrics -->
+      <section class="metric-card real-time">
+        <h2>Real-Time Metrics</h2>
+        <div class="metrics-grid">
+          <div class="metric">
+            <div class="metric-value" id="current-severity">0.0</div>
+            <div class="metric-label">Current Severity</div>
+            <div class="metric-trend" id="severity-trend">→</div>
+          </div>
+          <div class="metric">
+            <div class="metric-value" id="click-accuracy">100%</div>
+            <div class="metric-label">Click Accuracy</div>
+            <div class="metric-trend" id="accuracy-trend">↑</div>
+          </div>
+          <div class="metric">
+            <div class="metric-value" id="fatigue-level">0</div>
+            <div class="metric-label">Fatigue Level</div>
+            <div class="metric-progress">
+              <div class="progress-bar" id="fatigue-bar"></div>
+            </div>
+          </div>
+          <div class="metric">
+            <div class="metric-value" id="stress-indicator">0</div>
+            <div class="metric-label">Stress Level</div>
+            <div class="metric-progress">
+              <div class="progress-bar stress" id="stress-bar"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Tremor Pattern Chart -->
+      <section class="chart-card pattern-chart">
+        <h2>Tremor Patterns (24 Hours)</h2>
+        <canvas id="tremor-pattern-chart"></canvas>
+        <div class="chart-legend">
+          <span class="legend-item severity">Severity</span>
+          <span class="legend-item prediction">AI Prediction</span>
+        </div>
+      </section>
+
+      <!-- AI Insights -->
+      <section class="insights-card">
+        <h2>🤖 AI Agent Insights</h2>
+        <div class="insights-list" id="ai-insights">
+          <div class="insight-item">
+            <span class="insight-icon">💡</span>
+            <div class="insight-content">
+              <div class="insight-message">Analyzing your tremor patterns...</div>
+              <div class="insight-time">Just now</div>
+            </div>
+          </div>
+        </div>
+        <div class="ai-recommendations">
+          <h3>Personalized Recommendations</h3>
+          <ul id="recommendations-list">
+            <li>Loading recommendations...</li>
+          </ul>
+        </div>
+      </section>
+
+      <!-- Heatmap -->
+      <section class="heatmap-card">
+        <h2>Miss-Click Heatmap</h2>
+        <div class="heatmap-container">
+          <canvas id="click-heatmap"></canvas>
+        </div>
+        <div class="heatmap-stats">
+          <div class="stat">
+            <span class="stat-label">Total Clicks:</span>
+            <span class="stat-value" id="total-clicks">0</span>
+          </div>
+          <div class="stat">
+            <span class="stat-label">Miss Rate:</span>
+            <span class="stat-value" id="miss-rate">0%</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- Session Analytics -->
+      <section class="session-card">
+        <h2>Session Analytics</h2>
+        <div class="session-stats">
+          <div class="session-item">
+            <span class="session-label">Session Duration</span>
+            <span class="session-value" id="session-duration">00:00:00</span>
+          </div>
+          <div class="session-item">
+            <span class="session-label">Peak Severity</span>
+            <span class="session-value" id="peak-severity">0.0</span>
+          </div>
+          <div class="session-item">
+            <span class="session-label">Tremors/Min</span>
+            <span class="session-value" id="tremors-per-minute">0</span>
+          </div>
+          <div class="session-item">
+            <span class="session-label">Improvement</span>
+            <span class="session-value positive" id="improvement-rate">+0%</span>
+          </div>
+        </div>
+        <div class="optimal-break">
+          <div class="break-label">AI Suggested Break Time</div>
+          <div class="break-time" id="optimal-break-time">Calculating...</div>
+        </div>
+      </section>
+
+      <!-- Predictive Analysis -->
+      <section class="prediction-card">
+        <h2>🔮 AI Predictions</h2>
+        <div class="prediction-content">
+          <div class="prediction-item">
+            <span class="prediction-label">Next Hour Severity</span>
+            <div class="prediction-visual">
+              <div class="severity-bar">
+                <div class="severity-fill" id="predicted-severity"></div>
+              </div>
+              <span class="prediction-value" id="prediction-value">--</span>
+            </div>
+          </div>
+          <div class="prediction-confidence">
+            <span>AI Confidence:</span>
+            <div class="confidence-meter">
+              <div class="confidence-fill" id="confidence-level"></div>
+            </div>
+            <span id="confidence-percent">0%</span>
+          </div>
+        </div>
+        <div class="prediction-advice" id="prediction-advice">
+          The AI is learning your patterns...
+        </div>
+      </section>
+
+      <!-- Website Difficulty Analysis -->
+      <section class="website-card">
+        <h2>Website Difficulty Analysis</h2>
+        <div class="website-list" id="website-difficulty">
+          <div class="website-item">
+            <span class="website-name">Current Site</span>
+            <div class="difficulty-bar">
+              <div class="difficulty-fill" style="width: 50%"></div>
+            </div>
+            <span class="difficulty-score">5.0</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- Export Options -->
+      <section class="export-card">
+        <h2>Export & Share</h2>
+        <div class="export-buttons">
+          <button class="export-btn" id="export-pdf">
+            📄 Export PDF Report
+          </button>
+          <button class="export-btn" id="export-csv">
+            📊 Export CSV Data
+          </button>
+          <button class="export-btn" id="share-doctor">
+            👨‍⚕️ Share with Doctor
+          </button>
+        </div>
+      </section>
+    </div>
+
+    <!-- AI Agent Console -->
+    <div class="ai-console">
+      <div class="console-header">
+        <span class="console-title">AI Agent Console</span>
+        <span class="console-status">Processing...</span>
+      </div>
+      <div class="console-log" id="ai-console-log">
+        <div class="log-entry">
+          <span class="log-time">00:00:00</span>
+          <span class="log-message">AI Agent initialized. Starting pattern analysis...</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/chart.min.js"></script>
+  <script src="js/analytics-dashboard.js"></script>
+</body>
+</html>

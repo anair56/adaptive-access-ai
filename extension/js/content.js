@@ -1,14 +1,9 @@
 // TremorSense - Content Script
 // This runs on every webpage and provides real-time accessibility features
 
-// Dynamic import of Voice Navigator
-let VoiceNavigator = null;
-
 class TremorSense {
   constructor() {
     this.enabled = false;
-    this.voiceNavigator = null;
-    this.voiceEnabled = false;
     this.settings = {
       sensitivity: 0.5,
       magneticStrength: 70,
@@ -74,7 +69,49 @@ class TremorSense {
       handleMouseDown: this.handleMouseDown.bind(this)
     };
 
+    // Initialize analytics engines
+    this.analyticsEngine = null;
+    this.hexAnalytics = null;
+    this.initializeAnalytics();
+
     this.init();
+  }
+
+  async initializeAnalytics() {
+    try {
+      // Load analytics modules dynamically
+      // First load hex config
+      const scriptConfig = document.createElement('script');
+      scriptConfig.src = chrome.runtime.getURL('js/hex-config.js');
+
+      scriptConfig.onload = () => {
+        // Then load tremor analytics
+        const scriptTremor = document.createElement('script');
+        scriptTremor.src = chrome.runtime.getURL('js/tremor-analytics.js');
+        scriptTremor.onload = () => {
+          if (typeof TremorAnalyticsEngine !== 'undefined') {
+            this.analyticsEngine = new TremorAnalyticsEngine();
+            console.log('TremorSense: Analytics engine initialized');
+          }
+        };
+        document.head.appendChild(scriptTremor);
+
+        // Finally load hex analytics
+        const scriptHex = document.createElement('script');
+        scriptHex.src = chrome.runtime.getURL('js/hex-analytics.js');
+        scriptHex.onload = () => {
+          if (typeof HexAnalyticsIntegration !== 'undefined') {
+            this.hexAnalytics = new HexAnalyticsIntegration();
+            console.log('TremorSense: Hex analytics initialized');
+          }
+        };
+        document.head.appendChild(scriptHex);
+      };
+
+      document.head.appendChild(scriptConfig);
+    } catch (error) {
+      console.warn('TremorSense: Failed to initialize analytics:', error);
+    }
   }
 
   async init() {
@@ -88,13 +125,6 @@ class TremorSense {
       this.enable();
       if (stored.settings?.showAISidebar !== false) {
         this.createAISidebar();
-      }
-      // Initialize voice control if it was enabled
-      if (stored.settings?.voiceEnabled) {
-        // Delay initialization to ensure VoiceNavigator class is loaded
-        setTimeout(() => {
-          this.initializeVoiceNavigator();
-        }, 100);
       }
     }
 
@@ -138,26 +168,6 @@ class TremorSense {
       // Alt+Shift+A to toggle TremorSense
       if (e.altKey && e.shiftKey && e.key === 'A') {
         this.toggle();
-      }
-
-      // Cmd+Shift+V (Mac) or Ctrl+Shift+V (Windows) for voice control
-      const isMac = navigator.userAgent.includes('Mac');
-      const modifierKey = isMac ? e.metaKey : e.ctrlKey;
-
-      if (modifierKey && e.shiftKey && e.key === 'V') {
-        e.preventDefault();
-        console.log('TremorSense: Voice control shortcut pressed');
-
-        // Make sure TremorSense is enabled first
-        if (!this.enabled) {
-          this.enable();
-          // Wait for enable to complete
-          setTimeout(() => {
-            this.toggleVoiceControl();
-          }, 500);
-        } else {
-          this.toggleVoiceControl();
-        }
       }
     });
   }
@@ -236,12 +246,41 @@ class TremorSense {
       avgMagnitude > 12 &&
       avgMagnitude < 4200;
 
+    // Collect analytics data
+    if (this.analyticsEngine) {
+      const dataPoint = {
+        severity: hasTremor ? Math.min(10, changeRate * 10) : 0,
+        frequency: directionChanges,
+        amplitude: avgMagnitude / 100,
+        position: this.mousePosition,
+        velocity: avgMagnitude,
+        acceleration: this.tremorBuffer.length > 1 ?
+          Math.abs(avgMagnitude - (this.lastAvgMagnitude || avgMagnitude)) : 0,
+        targetElement: this.getElementUnderMouse(),
+        success: false,
+        timestamp: Date.now()
+      };
+      this.analyticsEngine.collectDataPoint(dataPoint);
+
+      // Send to Hex for advanced analysis
+      if (this.hexAnalytics) {
+        this.hexAnalytics.addDataPoint(dataPoint);
+      }
+    }
+    this.lastAvgMagnitude = avgMagnitude;
+
     if (hasTremor !== this.metrics.tremorDetected) {
       this.metrics.tremorDetected = hasTremor;
       if (hasTremor) {
         this.onTremorDetected();
       }
     }
+  }
+
+  getElementUnderMouse() {
+    const el = document.elementFromPoint(this.mousePosition.x, this.mousePosition.y);
+    return el && (el.tagName === 'BUTTON' || el.tagName === 'A' || el.tagName === 'INPUT') ?
+      el.tagName.toLowerCase() : null;
   }
 
   /** Looser than full tremor flag — backs up proximity enlargement when the pointer is unsteady near a control. */
@@ -1357,35 +1396,6 @@ class TremorSense {
         sendResponse({ success: true });
         break;
 
-      case 'TOGGLE_VOICE':
-        if (message.enabled) {
-          this.initializeVoiceNavigator();
-          // Wait a moment for initialization then start
-          setTimeout(async () => {
-            if (this.voiceNavigator) {
-              try {
-                await this.voiceNavigator.start();
-                this.voiceEnabled = true;
-              } catch (error) {
-                console.warn('TremorSense: Could not start voice control', error);
-              }
-            }
-          }, 500);
-        } else {
-          if (this.voiceNavigator) {
-            try {
-              this.voiceNavigator.stop();
-              this.voiceEnabled = false;
-            } catch (error) {
-              console.warn('TremorSense: Could not stop voice control', error);
-            }
-          }
-        }
-        chrome.storage.local.set({
-          settings: { ...this.settings, voiceEnabled: message.enabled }
-        });
-        sendResponse({ success: true });
-        break;
 
       case 'GET_STATUS':
         sendResponse({
@@ -1431,75 +1441,8 @@ class TremorSense {
       this.createAISidebar();
     }
 
-    // Initialize Voice Navigator if available
-    this.initializeVoiceNavigator();
   }
 
-  initializeVoiceNavigator() {
-    console.log('TremorSense: Attempting to initialize Voice Navigator...');
-
-    // Initialize Voice Navigator if available
-    if (this.voiceNavigator) {
-      console.log('TremorSense: Voice Navigator already initialized');
-      return;
-    }
-
-    // Check if VoiceNavigator class is available
-    if (typeof VoiceNavigator === 'undefined') {
-      console.warn('TremorSense: VoiceNavigator class not available. Check if voice-navigator.js is loaded.');
-
-      // Try loading it directly as a fallback
-      const script = document.createElement('script');
-      script.src = chrome.runtime.getURL('js/voice-navigator.js');
-      script.onload = () => {
-        console.log('TremorSense: Voice Navigator script loaded');
-        setTimeout(() => {
-          if (typeof VoiceNavigator !== 'undefined') {
-            this.initializeVoiceNavigator();
-          }
-        }, 100);
-      };
-      script.onerror = (error) => {
-        console.error('TremorSense: Failed to load voice-navigator.js', error);
-      };
-      document.head.appendChild(script);
-      return;
-    }
-
-    try {
-      this.voiceNavigator = new VoiceNavigator();
-      this.voiceEnabled = true;
-      console.log('TremorSense: Voice Navigator initialized successfully');
-
-      // Update shortcut message based on platform
-      const isMac = navigator.platform && navigator.platform.toUpperCase().indexOf('MAC') >= 0;
-      const shortcut = isMac ? 'Cmd+Shift+V' : 'Ctrl+Shift+V';
-      this.showNotification(`🎤 Voice control ready! Press ${shortcut} to start`);
-    } catch (error) {
-      console.warn('TremorSense: Could not initialize Voice Navigator', error);
-      // Don't retry on actual initialization errors
-    }
-  }
-
-  async toggleVoiceControl() {
-    if (this.voiceNavigator) {
-      try {
-        await this.voiceNavigator.toggle();
-        this.voiceEnabled = !this.voiceEnabled;
-        this.showNotification(this.voiceEnabled ? '🎤 Voice control activated' : 'Voice control deactivated');
-      } catch (error) {
-        console.warn('TremorSense: Error toggling voice control', error);
-      }
-    } else {
-      this.initializeVoiceNavigator();
-      // Give it a moment to initialize then try to start
-      setTimeout(() => {
-        if (this.voiceNavigator) {
-          this.toggleVoiceControl();
-        }
-      }, 500);
-    }
-  }
 
   disable() {
     this.enabled = false;
@@ -1519,13 +1462,6 @@ class TremorSense {
     // Remove event listeners to prevent memory leaks
     this.removeEventListeners();
 
-    // Disable voice navigator if active
-    if (this.voiceNavigator) {
-      this.voiceNavigator.stop();
-      this.voiceNavigator.destroy();
-      this.voiceNavigator = null;
-      this.voiceEnabled = false;
-    }
   }
 
   removeEventListeners() {

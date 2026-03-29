@@ -23,7 +23,7 @@
   "content_scripts": [
     {
       "matches": ["<all_urls>"],
-      "js": ["js/voice-navigator.js", "js/content.js"],
+      "js": ["js/content.js"],
       "css": ["css/accessibility.css"],
       "run_at": "document_idle",
       "all_frames": false
@@ -40,7 +40,10 @@
         "css/accessibility.css",
         "css/modern-ui.css",
         "images/tremorsense-logo.png",
-        "js/voice-navigator.js"
+        "js/tremor-analytics.js",
+        "js/hex-analytics.js",
+        "js/hex-config.js",
+        "js/chart.min.js"
       ],
       "matches": ["<all_urls>"]
     }

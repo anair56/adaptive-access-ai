@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Hex API Setup - TremorSense</title>
+  <link rel="stylesheet" href="css/modern-ui.css">
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Roboto, sans-serif;
+      background: linear-gradient(135deg, #f5f5f7 0%, #e5e5e7 100%);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+
+    .setup-container {
+      background: white;
+      border-radius: 20px;
+      padding: 40px;
+      max-width: 600px;
+      width: 100%;
+      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
+    }
+
+    .setup-header {
+      text-align: center;
+      margin-bottom: 40px;
+    }
+
+    .logo {
+      max-width: 250px;
+      margin-bottom: 20px;
+    }
+
+    h1 {
+      font-size: 28px;
+      font-weight: 600;
+      color: #000;
+      margin-bottom: 10px;
+    }
+
+    .subtitle {
+      color: #666;
+      font-size: 16px;
+    }
+
+    .mode-toggle {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 30px;
+      padding: 5px;
+      background: #f5f5f7;
+      border-radius: 12px;
+    }
+
+    .mode-btn {
+      flex: 1;
+      padding: 12px;
+      border: none;
+      background: transparent;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .mode-btn.active {
+      background: white;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    }
+
+    .form-section {
+      display: none;
+    }
+
+    .form-section.active {
+      display: block;
+    }
+
+    .form-group {
+      margin-bottom: 25px;
+    }
+
+    label {
+      display: block;
+      font-size: 14px;
+      font-weight: 500;
+      color: #333;
+      margin-bottom: 8px;
+    }
+
+    input[type="text"],
+    input[type="password"] {
+      width: 100%;
+      padding: 12px 16px;
+      border: 2px solid #e5e5e7;
+      border-radius: 8px;
+      font-size: 14px;
+      transition: border-color 0.2s;
+    }
+
+    input[type="text"]:focus,
+    input[type="password"]:focus {
+      outline: none;
+      border-color: #8B2635;
+    }
+
+    .help-text {
+      font-size: 12px;
+      color: #999;
+      margin-top: 5px;
+    }
+
+    .demo-info {
+      background: #f9fafb;
+      border: 1px solid #e5e5e7;
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 20px;
+    }
+
+    .demo-info h3 {
+      font-size: 16px;
+      font-weight: 600;
+      margin-bottom: 10px;
+      color: #8B2635;
+    }
+
+    .demo-info p {
+      font-size: 14px;
+      color: #666;
+      line-height: 1.5;
+    }
+
+    .demo-features {
+      list-style: none;
+      padding: 0;
+      margin: 15px 0;
+    }
+
+    .demo-features li {
+      padding: 8px 0;
+      font-size: 14px;
+      color: #333;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .demo-features li::before {
+      content: '✓';
+      color: #4ade80;
+      font-weight: bold;
+    }
+
+    .instructions {
+      background: #f0f9ff;
+      border: 1px solid #bae6fd;
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 20px;
+    }
+
+    .instructions h3 {
+      font-size: 16px;
+      font-weight: 600;
+      margin-bottom: 10px;
+      color: #0369a1;
+    }
+
+    .instructions ol {
+      margin: 0;
+      padding-left: 20px;
+    }
+
+    .instructions li {
+      font-size: 14px;
+      color: #333;
+      line-height: 1.6;
+      margin-bottom: 8px;
+    }
+
+    .instructions code {
+      background: #e0f2fe;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-family: "SF Mono", Monaco, monospace;
+      font-size: 13px;
+    }
+
+    .btn-group {
+      display: flex;
+      gap: 10px;
+      margin-top: 30px;
+    }
+
+    .btn {
+      flex: 1;
+      padding: 14px 24px;
+      border: none;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, #8B2635 0%, #A8312F 100%);
+      color: white;
+    }
+
+    .btn-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(139, 38, 53, 0.3);
+    }
+
+    .btn-secondary {
+      background: white;
+      color: #333;
+      border: 2px solid #e5e5e7;
+    }
+
+    .btn-secondary:hover {
+      background: #f5f5f7;
+    }
+
+    .status-message {
+      padding: 12px 16px;
+      border-radius: 8px;
+      margin-top: 20px;
+      font-size: 14px;
+      display: none;
+    }
+
+    .status-message.success {
+      background: #dcfce7;
+      color: #166534;
+      border: 1px solid #bbf7d0;
+      display: block;
+    }
+
+    .status-message.error {
+      background: #fee2e2;
+      color: #991b1b;
+      border: 1px solid #fecaca;
+      display: block;
+    }
+  </style>
+</head>
+<body>
+  <div class="setup-container">
+    <div class="setup-header">
+      <img src="images/tremorsense-logo.png" alt="TremorSense" class="logo">
+      <h1>Hex Analytics Setup</h1>
+      <p class="subtitle">Configure advanced AI-powered analytics</p>
+    </div>
+
+    <div class="mode-toggle">
+      <button class="mode-btn active" data-mode="demo">Demo Mode</button>
+      <button class="mode-btn" data-mode="production">Production Mode</button>
+    </div>
+
+    <!-- Demo Mode Section -->
+    <div class="form-section active" id="demo-section">
+      <div class="demo-info">
+        <h3>🚀 Demo Mode Active</h3>
+        <p>Experience TremorSense Analytics with simulated data - no Hex account required!</p>
+        <ul class="demo-features">
+          <li>Real-time tremor pattern analysis</li>
+          <li>AI-powered predictions and insights</li>
+          <li>Interactive visualizations</li>
+          <li>Personalized recommendations</li>
+        </ul>
+        <p style="margin-top: 15px; font-size: 13px; color: #999;">
+          Demo mode uses realistic mock data for development and testing.
+        </p>
+      </div>
+
+      <div class="btn-group">
+        <button class="btn btn-primary" id="start-demo">
+          Start Demo Analytics
+        </button>
+      </div>
+    </div>
+
+    <!-- Production Mode Section -->
+    <div class="form-section" id="production-section">
+      <div class="instructions">
+        <h3>📋 Setup Instructions</h3>
+        <ol>
+          <li>Sign up for a free Hex account at <a href="https://hex.tech" target="_blank">hex.tech</a></li>
+          <li>Create a new project called "TremorSense Analytics"</li>
+          <li>Go to Settings → API Keys and create a new API key</li>
+          <li>Copy your <code>API Key</code>, <code>Project ID</code>, and <code>Workspace ID</code></li>
+          <li>Enter them below to enable advanced analytics</li>
+        </ol>
+      </div>
+
+      <form id="hex-setup-form">
+        <div class="form-group">
+          <label for="api-key">Hex API Key</label>
+          <input type="password" id="api-key" placeholder="hex_api_xxxxxxxxxxxxx" required>
+          <div class="help-text">Your Hex API key for authentication</div>
+        </div>
+
+        <div class="form-group">
+          <label for="project-id">Project ID</label>
+          <input type="text" id="project-id" placeholder="proj_xxxxxxxxxxxxx" required>
+          <div class="help-text">The ID of your TremorSense Analytics project</div>
+        </div>
+
+        <div class="form-group">
+          <label for="workspace-id">Workspace ID</label>
+          <input type="text" id="workspace-id" placeholder="work_xxxxxxxxxxxxx" required>
+          <div class="help-text">Your Hex workspace ID</div>
+        </div>
+
+        <div class="btn-group">
+          <button type="button" class="btn btn-secondary" id="test-connection">
+            Test Connection
+          </button>
+          <button type="submit" class="btn btn-primary">
+            Save Configuration
+          </button>
+        </div>
+      </form>
+    </div>
+
+    <div class="status-message" id="status-message"></div>
+  </div>
+
+  <script src="js/hex-setup.js"></script>
+</body>
+</html>

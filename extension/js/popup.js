@@ -19,7 +19,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   const enlargeSlider = document.getElementById('enlargeSlider');
   const autoAdapt = document.getElementById('autoAdapt');
   const aiSidebar = document.getElementById('aiSidebar');
-  const voiceControl = document.getElementById('voiceControl');
 
   // Value displays
   const sensitivityValue = document.getElementById('sensitivityValue');
@@ -42,12 +41,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Get current tab
     [currentTab] = await chrome.tabs.query({ active: true, currentWindow: true });
 
-    // Update voice control label based on platform
-    const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
-    const voiceControlLabel = document.getElementById('voiceControlLabel');
-    if (voiceControlLabel) {
-      voiceControlLabel.textContent = `🎤 Voice Navigation (${isMac ? 'Cmd' : 'Ctrl'}+Shift+V)`;
-    }
 
     // Get stored state
     const storage = await chrome.storage.local.get(['enabled', 'settings']);
@@ -64,7 +57,6 @@ document.addEventListener('DOMContentLoaded', async () => {
       enlargeSlider.value = storage.settings.enlargeScale * 100;
       autoAdapt.checked = storage.settings.autoAdapt;
       aiSidebar.checked = storage.settings.showAISidebar !== false; // Default to true
-      voiceControl.checked = storage.settings.voiceEnabled || false;
       updateSliderValues();
     }
 
@@ -168,23 +160,18 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   });
 
-  voiceControl.addEventListener('change', async (e) => {
-    await updateSetting('voiceEnabled', e.target.checked);
-    // Send message to content script to toggle voice control
-    try {
-      if (currentTab && currentTab.id) {
-        await chrome.tabs.sendMessage(currentTab.id, {
-          type: 'TOGGLE_VOICE',
-          enabled: e.target.checked
-        });
-      }
-    } catch (error) {
-      console.log('Could not toggle voice control:', error.message);
-      if (e.target.checked) {
-        showNotification('Voice control will be available after page refresh', 'info');
-      }
-    }
-  });
+
+  // Analytics dashboard button
+  const analyticsBtn = document.getElementById('openAnalytics');
+  if (analyticsBtn) {
+    analyticsBtn.addEventListener('click', async () => {
+      // Always go directly to dashboard - YOUR Hex credentials are already configured
+      chrome.tabs.create({
+        url: chrome.runtime.getURL('analytics-dashboard.html')
+      });
+      window.close();
+    });
+  }
 
   // Update settings
   async function updateSetting(key, value) {
