@@ -134,9 +134,12 @@ class VoiceNavigator {
       }
     };
 
-    // Keyboard shortcut for voice control (Ctrl+Shift+V)
+    // Keyboard shortcut for voice control (Cmd+Shift+V on Mac, Ctrl+Shift+V on Windows)
     document.addEventListener('keydown', (e) => {
-      if (e.ctrlKey && e.shiftKey && e.key === 'V') {
+      const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
+      const modifierKey = isMac ? e.metaKey : e.ctrlKey;
+
+      if (modifierKey && e.shiftKey && e.key === 'V') {
         e.preventDefault();
         this.toggle();
       }
@@ -852,11 +855,98 @@ class VoiceNavigator {
     }, duration);
   }
 
-  start() {
+  async start() {
     if (this.recognition && !this.isListening) {
-      this.recognition.start();
-      this.enabled = true;
+      try {
+        // Check if we have microphone permissions
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+          .catch(err => {
+            console.log('Microphone permission needed:', err);
+            this.showPermissionPrompt();
+            return null;
+          });
+
+        if (stream) {
+          // We have permission, stop the stream and start recognition
+          stream.getTracks().forEach(track => track.stop());
+          this.recognition.start();
+          this.enabled = true;
+        }
+      } catch (error) {
+        console.error('Voice Navigator: Failed to start', error);
+        this.showPermissionPrompt();
+      }
     }
+  }
+
+  showPermissionPrompt() {
+    const prompt = document.createElement('div');
+    prompt.id = 'voice-permission-prompt';
+    prompt.style.cssText = `
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: white;
+      color: black;
+      padding: 30px;
+      border-radius: 16px;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+      z-index: 2147483647;
+      max-width: 400px;
+      font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+      text-align: center;
+    `;
+
+    prompt.innerHTML = `
+      <h2 style="margin: 0 0 15px 0; color: #333;">🎤 Enable Voice Control</h2>
+      <p style="margin: 0 0 20px 0; color: #666; line-height: 1.5;">
+        TremorSense needs microphone access to enable voice commands.
+        Click below and allow microphone access when prompted by your browser.
+      </p>
+      <button id="grant-mic-permission" style="
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border: none;
+        padding: 12px 30px;
+        border-radius: 8px;
+        font-size: 16px;
+        font-weight: 600;
+        cursor: pointer;
+        margin-right: 10px;
+      ">Grant Microphone Access</button>
+      <button id="cancel-mic-permission" style="
+        background: #f0f0f0;
+        color: #666;
+        border: none;
+        padding: 12px 30px;
+        border-radius: 8px;
+        font-size: 16px;
+        cursor: pointer;
+      ">Cancel</button>
+    `;
+
+    document.body.appendChild(prompt);
+
+    document.getElementById('grant-mic-permission').addEventListener('click', async () => {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        stream.getTracks().forEach(track => track.stop());
+        prompt.remove();
+        this.showVisualFeedback('✅ Microphone access granted! Voice control is ready.');
+        this.recognition.start();
+        this.enabled = true;
+      } catch (error) {
+        prompt.innerHTML += `<p style="color: red; margin-top: 10px;">
+          ⚠️ Permission denied. Please check your browser settings and try again.
+        </p>`;
+      }
+    });
+
+    document.getElementById('cancel-mic-permission').addEventListener('click', () => {
+      prompt.remove();
+      this.showVisualFeedback('Voice control cancelled');
+    });
   }
 
   stop() {
@@ -868,12 +958,14 @@ class VoiceNavigator {
     }
   }
 
-  toggle() {
+  async toggle() {
     if (this.isListening) {
       this.stop();
     } else {
-      this.start();
-      this.showVisualFeedback('Voice control activated! Say "help" for commands.');
+      await this.start();
+      if (this.enabled) {
+        this.showVisualFeedback('Voice control activated! Say "help" for commands.');
+      }
     }
   }
 

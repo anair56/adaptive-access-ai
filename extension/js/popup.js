@@ -42,6 +42,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Get current tab
     [currentTab] = await chrome.tabs.query({ active: true, currentWindow: true });
 
+    // Update voice control label based on platform
+    const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
+    const voiceControlLabel = document.getElementById('voiceControlLabel');
+    if (voiceControlLabel) {
+      voiceControlLabel.textContent = `🎤 Voice Navigation (${isMac ? 'Cmd' : 'Ctrl'}+Shift+V)`;
+    }
+
     // Get stored state
     const storage = await chrome.storage.local.get(['enabled', 'settings']);
     isEnabled = storage.enabled || false;
