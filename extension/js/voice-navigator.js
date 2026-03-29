@@ -726,6 +726,13 @@ class VoiceNavigator {
   }
 
   createUI() {
+    // Check if button already exists
+    if (document.getElementById('tremor-sense-voice-btn')) {
+      this.voiceButton = document.getElementById('tremor-sense-voice-btn');
+      this.statusIndicator = document.getElementById('tremor-sense-voice-status');
+      return;
+    }
+
     // Voice control button
     const voiceButton = document.createElement('button');
     voiceButton.id = 'tremor-sense-voice-btn';

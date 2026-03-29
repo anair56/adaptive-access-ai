@@ -36,7 +36,12 @@
 
   "web_accessible_resources": [
     {
-      "resources": ["css/accessibility.css", "css/modern-ui.css", "images/tremorsense-logo.png"],
+      "resources": [
+        "css/accessibility.css",
+        "css/modern-ui.css",
+        "images/tremorsense-logo.png",
+        "js/voice-navigator.js"
+      ],
       "matches": ["<all_urls>"]
     }
   ],

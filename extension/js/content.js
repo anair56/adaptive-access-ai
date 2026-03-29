@@ -135,9 +135,29 @@ class TremorSense {
 
     // Keyboard shortcuts
     document.addEventListener('keydown', (e) => {
-      // Alt+Shift+A to toggle
+      // Alt+Shift+A to toggle TremorSense
       if (e.altKey && e.shiftKey && e.key === 'A') {
         this.toggle();
+      }
+
+      // Cmd+Shift+V (Mac) or Ctrl+Shift+V (Windows) for voice control
+      const isMac = navigator.userAgent.includes('Mac');
+      const modifierKey = isMac ? e.metaKey : e.ctrlKey;
+
+      if (modifierKey && e.shiftKey && e.key === 'V') {
+        e.preventDefault();
+        console.log('TremorSense: Voice control shortcut pressed');
+
+        // Make sure TremorSense is enabled first
+        if (!this.enabled) {
+          this.enable();
+          // Wait for enable to complete
+          setTimeout(() => {
+            this.toggleVoiceControl();
+          }, 500);
+        } else {
+          this.toggleVoiceControl();
+        }
       }
     });
   }
@@ -1416,6 +1436,8 @@ class TremorSense {
   }
 
   initializeVoiceNavigator() {
+    console.log('TremorSense: Attempting to initialize Voice Navigator...');
+
     // Initialize Voice Navigator if available
     if (this.voiceNavigator) {
       console.log('TremorSense: Voice Navigator already initialized');
@@ -1424,13 +1446,23 @@ class TremorSense {
 
     // Check if VoiceNavigator class is available
     if (typeof VoiceNavigator === 'undefined') {
-      console.log('TremorSense: VoiceNavigator class not yet loaded, retrying...');
-      // Try again in a moment
-      setTimeout(() => {
-        if (!this.voiceNavigator && typeof VoiceNavigator !== 'undefined') {
-          this.initializeVoiceNavigator();
-        }
-      }, 500);
+      console.warn('TremorSense: VoiceNavigator class not available. Check if voice-navigator.js is loaded.');
+
+      // Try loading it directly as a fallback
+      const script = document.createElement('script');
+      script.src = chrome.runtime.getURL('js/voice-navigator.js');
+      script.onload = () => {
+        console.log('TremorSense: Voice Navigator script loaded');
+        setTimeout(() => {
+          if (typeof VoiceNavigator !== 'undefined') {
+            this.initializeVoiceNavigator();
+          }
+        }, 100);
+      };
+      script.onerror = (error) => {
+        console.error('TremorSense: Failed to load voice-navigator.js', error);
+      };
+      document.head.appendChild(script);
       return;
     }
 
